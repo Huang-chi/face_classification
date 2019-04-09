@@ -12,6 +12,7 @@ import FaceRendering
 import utils
 
 from ImportIamage import return_image_path
+from add_image import Add_image
 
 #print ("Press T to draw the keypoints and the 3D model")
 #print ("Press R to start recording to a video file")
@@ -23,7 +24,7 @@ from ImportIamage import return_image_path
 predictor_path = "../shape_predictor_68_face_landmarks.dat"
 
 image_name = return_image_path()
-# image_name = "../data/shen-yue.jpg"
+# image_name = "../data/i.png"
 #the smaller this value gets the faster the detection will work
 #if it is too small, the user's face might not be detected
 maxImageSizeForDetection = 320
@@ -67,13 +68,16 @@ while True:
             mask = np.copy(renderedImg[:, :, 0])
             renderedImg = ImageProcessing.colorTransfer(cameraImg, renderedImg, mask)
             cameraImg = ImageProcessing.blendImages(renderedImg, cameraImg, mask)
-       
+
 
             #drawing of the mesh and keypoints
             if drawOverlay:
                 drawPoints(cameraImg, shape2D.T)
                 drawProjectedShape(cameraImg, [mean3DShape, blendshapes], projectionModel, mesh, modelParams, lockedTranslation)
 
+    textureImg = cv2.resize(textureImg,(100,100))
+    cameraImg = Add_image(cameraImg,textureImg)
+            
     if writer is not None:
         writer.write(cameraImg)
 
