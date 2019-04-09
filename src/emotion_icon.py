@@ -46,7 +46,7 @@ def load_emotion_icon():
     return icon_dict,words_dict
 
 def Addemotion(coordinates,image_array,emotion_icon=None):
-    
+    print(coordinates)
     x , y , w = coordinates[:3]
     x_offset = x + w - emotion_icon.shape[1]
     y_offset = -80 + y
