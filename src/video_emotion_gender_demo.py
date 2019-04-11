@@ -1,7 +1,7 @@
 import sys
 
 from statistics import mode
-
+from pathlib import Path
 import cv2
 from keras.models import load_model
 import numpy as np
@@ -24,6 +24,9 @@ from emotion_icon import Addemotion
 from emotion_icon import Addemotion_word
 from emotion_icon import return_finish
 
+from keras.utils.data_utils import get_file
+from contextlib import contextmanager
+from wide_resnet import WideResNet
 #################
 from test_function import get_args
 from test_function import draw_label
@@ -33,7 +36,6 @@ from test_function import yield_images_from_dir
 #################
 
 import threading
-from demo import age_main
 
 # parameters for loading data and images
 detection_model_path = '../trained_models/detection_models/haarcascade_frontalface_default.xml'
@@ -43,6 +45,8 @@ emotion_labels = get_labels('fer2013')
 gender_labels = get_labels('imdb')
 font = cv2.FONT_HERSHEY_SIMPLEX
 
+pretrained_model = "https://github.com/yu4u/age-gender-estimation/releases/download/v0.5/weights.28-3.73.hdf5"
+modhash = 'fbe63257a054c1c5466cfd7bf14646d6'
 
 # hyper-parameters for bounding boxes shape
 frame_window = 10
@@ -71,19 +75,31 @@ cv2.namedWindow('window_frame')
 # load in all emotion icon
 icon_dict , words_dict = load_emotion_icon()
 
-# while True:
-args_object = get_args()
-image_dir = args_object.image_dir
+###########
+args = get_args()
+depth = args.depth
+k = args.width
+weight_file = args.weight_file
+margin = args.margin
+image_dir = args.image_dir
+###########
+
+if not weight_file:
+    weight_file = get_file("weights.28-3.73.hdf5", pretrained_model, cache_subdir="pretrained_models",
+            file_hash=modhash, cache_dir=str(Path(__file__).resolve().parent))
+
+# for face detection
+detector = dlib.get_frontal_face_detector()
+
+# load model and weights
+img_size = 64
+model = WideResNet(img_size, depth=depth, k=k)()
+model.load_weights(weight_file)
+
 
 image_generator = yield_images_from_dir(image_dir) if image_dir else yield_images()
 
-# try:
-#     t = threading.Thread(target = age_main ,args = (args_object,image_generator,))
-#     t.start()
-# except:
-#    print ("Error: unable to start thread")
-
-
+frq = 0
 
 for img in image_generator:
     # bgr_image = image.read()[1]
@@ -91,6 +107,8 @@ for img in image_generator:
     gray_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
     rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
     faces = detect_faces(face_detection, gray_image)
+
+    img_h, img_w, _ = np.shape(rgb_image)
 
     for face_coordinates in faces:
         next_graph_controller = "False"
@@ -112,78 +130,76 @@ for img in image_generator:
         emotion_label_arg = np.argmax(emotion_classifier.predict(gray_face))
         emotion_text = emotion_labels[emotion_label_arg]
 
-        # emotion_window.append(emotion_text)
-        emotion_window.append(English_2_chinese_emotion(emotion_text))
+        emotion_window.append(emotion_text)
+        # emotion_window.append(English_2_chinese_emotion(emotion_text))
 
         rgb_face = np.expand_dims(rgb_face, 0)
         rgb_face = preprocess_input(rgb_face, False)
         gender_prediction = gender_classifier.predict(rgb_face)
         gender_label_arg = np.argmax(gender_prediction)
         gender_text = gender_labels[gender_label_arg]
-        gender_window.append(English_2_chinese_gender(gender_text))
+        # gender_window.append(English_2_chinese_gender(gender_text))
 
         set_icon = emotion_text+"_"+gender_text
         print(set_icon)
         icon_img = icon_dict[set_icon]
         words_img = words_dict[set_icon]
 
-        if len(gender_window) > frame_window:
-            emotion_window.pop(0)
-            gender_window.pop(0)
-        try:
-            emotion_mode = mode(emotion_window)
-            gender_mode = mode(gender_window)
-        except:
-            continue
+        # if len(gender_window) > frame_window:
+        #     emotion_window.pop(0)
+        #     gender_window.pop(0)
+        # try:
+        #     emotion_mode = mode(emotion_window)
+        #     gender_mode = mode(gender_window)
+        # except:
+        #     continue
 
         if gender_text == gender_labels[0]:
             color = (0, 0, 255)
         else:
             color = (255, 0, 0)
-        print(face_coordinates[1] - 80 )
-        print((face_coordinates[0] - face_coordinates[2]))
+        
+        ###################
+        if( frq % 60 == 0):
+        
+            # detect faces using dlib detector
+            detected = detector(rgb_image, 1)
+            print(detected)
+            faces_age = np.empty((len(detected), img_size, img_size, 3))
+        
+            if len(detected) > 0:
+                for i, d in enumerate(detected):
+                    x1, y1, x2, y2, w, h = d.left(), d.top(), d.right() + 1, d.bottom() + 1, d.width(), d.height()
+                    xw1 = max(int(x1 - margin * w), 0)
+                    yw1 = max(int(y1 - margin * h), 0)
+                    xw2 = min(int(x2 + margin * w), img_w - 1)
+                    yw2 = min(int(y2 + margin * h), img_h - 1)
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                    # cv2.rectangle(img, (xw1, yw1), (xw2, yw2), (255, 0, 0), 2)
+                    faces_age[i, :, :, :] = cv2.resize(img[yw1:yw2 + 1, xw1:xw2 + 1, :], (img_size, img_size))
+
+                # predict ages and genders of the detected faces
+                results = model.predict(faces_age)
+                predicted_genders = results[0]
+                ages = np.arange(0, 101).reshape(101, 1)
+                predicted_ages = results[1].dot(ages).flatten()
+                print(predicted_ages)
+        ###################
+
+        frq += 1
 
 
         if((face_coordinates[0] - face_coordinates[2]) > 50 and (face_coordinates[0] - face_coordinates[2]) < 180 and (face_coordinates[1]-80) > 20):
             solid_box = draw_solid_box(face_coordinates, rgb_image)
-            # while(next_graph_controller == "False"):
             draw_bounding_box(face_coordinates, rgb_image, color)
-            # solid_box = draw_solid_box(face_coordinates, rgb_image, color)
             solid_box = Addemotion(face_coordinates,solid_box,icon_img)
             solid_box = Addemotion_word(face_coordinates,solid_box,words_img)
-            # draw_text(face_coordinates, rgb_image, gender_mode,
-            #         color, 0, -20, 1, 1)
-            # draw_text(face_coordinates, rgb_image, emotion_mode,
-            #         color, 0, -45, 1, 1)
+            draw_text(face_coordinates, rgb_image, str(int(predicted_ages)),
+                    (255,255,255), 0, -20, 1, 1)
+
             next_graph_controller = return_finish
             next_graph_controller = "False"
 
-# ########################
-#         input_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-#         img_h, img_w, _ = np.shape(input_img)
-
-#         # detect faces using dlib detector
-#         detected = detector(input_img, 1)
-#         faces = np.empty((len(detected), img_size, img_size, 3))
-        
-#         if len(detected) > 0:
-#             for i, d in enumerate(detected):
-#                 x1, y1, x2, y2, w, h = d.left(), d.top(), d.right() + 1, d.bottom() + 1, d.width(), d.height()
-#                 xw1 = max(int(x1 - margin * w), 0)
-#                 yw1 = max(int(y1 - margin * h), 0)
-#                 xw2 = min(int(x2 + margin * w), img_w - 1)
-#                 yw2 = min(int(y2 + margin * h), img_h - 1)
-#                 cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
-#                 # cv2.rectangle(img, (xw1, yw1), (xw2, yw2), (255, 0, 0), 2)
-#                 faces[i, :, :, :] = cv2.resize(img[yw1:yw2 + 1, xw1:xw2 + 1, :], (img_size, img_size))
-
-#             # predict ages and genders of the detected faces
-#             results = model.predict(faces)
-#             predicted_genders = results[0]
-#             ages = np.arange(0, 101).reshape(101, 1)
-#             predicted_ages = results[1].dot(ages).flatten()
-
-#             draw_text(face_coordinates, solid_box,str(int(predicted_ages)),color)
 
     bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
     cv2.imshow('window_frame', bgr_image)
