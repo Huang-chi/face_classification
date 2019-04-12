@@ -102,6 +102,7 @@ frq = 0
 
 age_position = []
 
+
 for img in image_generator:
     # bgr_image = image.read()[1]
     bgr_image = img
@@ -129,6 +130,7 @@ for img in image_generator:
         gray_face = np.expand_dims(gray_face, -1)
         emotion_label_arg = np.argmax(emotion_classifier.predict(gray_face))
         emotion_text = emotion_labels[emotion_label_arg]
+
 
         # emotion_window.append(English_2_chinese_emotion(emotion_text))
 
@@ -172,13 +174,13 @@ for img in image_generator:
                 age_position = []
                 for i, d in enumerate(detected):
                     age_position = str(int(predicted_ages[i]))
-                    
-            
+
 
         if gender_text == gender_labels[0]:
             color = (0, 0, 255)
         else:
             color = (255, 0, 0)
+
 
         ###################
         if((face_coordinates[0] - face_coordinates[2]) > 50 and (face_coordinates[0] - face_coordinates[2]) < 180 and (face_coordinates[1]-80) > 20):
@@ -187,6 +189,7 @@ for img in image_generator:
             draw_bounding_box(face_coordinates, rgb_image, color)
             solid_box = Addemotion(face_coordinates,solid_box,icon_img)
             solid_box = Addemotion_word(face_coordinates,solid_box,words_img)
+
             print("-*---------")
             print(face_coordinates)
             print("----///////")
@@ -196,6 +199,7 @@ for img in image_generator:
                 (255,255,255), 0, -20, 1, 1)
             print("-*---------")
         frq += 1
+
 
     bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
     cv2.imshow('window_frame', bgr_image)
