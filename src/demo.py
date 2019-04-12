@@ -18,9 +18,9 @@ from test_function import yield_images_from_dir
 pretrained_model = "https://github.com/yu4u/age-gender-estimation/releases/download/v0.5/weights.28-3.73.hdf5"
 modhash = 'fbe63257a054c1c5466cfd7bf14646d6'
 
-def age_main(args,image_generator):
+def age_main():
     print("-------------start---------------")
-    # args = get_args()
+    args = get_args()
     depth = args.depth
     k = args.width
     weight_file = args.weight_file
@@ -39,7 +39,7 @@ def age_main(args,image_generator):
     model = WideResNet(img_size, depth=depth, k=k)()
     model.load_weights(weight_file)
 
-    # image_generator = yield_images_from_dir(image_dir) if image_dir else yield_images()
+    image_generator = yield_images_from_dir(image_dir) if image_dir else yield_images()
     print("-------------start for loop ---------------")
     for img in image_generator:
 
@@ -80,4 +80,4 @@ def age_main(args,image_generator):
 
 
 if __name__ == '__main__':
-    main()
+    age_main()

@@ -63,8 +63,7 @@ emotion_target_size = emotion_classifier.input_shape[1:3]
 gender_target_size = gender_classifier.input_shape[1:3]
 
 # starting lists for calculating modes
-gender_window = []
-emotion_window = []
+age_window = []
 
 # starting video streaming
 cv2.namedWindow('window_frame')
@@ -101,6 +100,9 @@ image_generator = yield_images_from_dir(image_dir) if image_dir else yield_image
 
 frq = 0
 
+age_position = []
+
+
 for img in image_generator:
     # bgr_image = image.read()[1]
     bgr_image = img
@@ -111,7 +113,6 @@ for img in image_generator:
     img_h, img_w, _ = np.shape(rgb_image)
 
     for face_coordinates in faces:
-        next_graph_controller = "False"
         x1, x2, y1, y2 = apply_offsets(face_coordinates, gender_offsets)
         rgb_face = rgb_image[y1:y2, x1:x2]
 
@@ -130,7 +131,7 @@ for img in image_generator:
         emotion_label_arg = np.argmax(emotion_classifier.predict(gray_face))
         emotion_text = emotion_labels[emotion_label_arg]
 
-        emotion_window.append(emotion_text)
+
         # emotion_window.append(English_2_chinese_emotion(emotion_text))
 
         rgb_face = np.expand_dims(rgb_face, 0)
@@ -145,19 +146,6 @@ for img in image_generator:
         icon_img = icon_dict[set_icon]
         words_img = words_dict[set_icon]
 
-        # if len(gender_window) > frame_window:
-        #     emotion_window.pop(0)
-        #     gender_window.pop(0)
-        # try:
-        #     emotion_mode = mode(emotion_window)
-        #     gender_mode = mode(gender_window)
-        # except:
-        #     continue
-
-        if gender_text == gender_labels[0]:
-            color = (0, 0, 255)
-        else:
-            color = (255, 0, 0)
         
         ###################
         if( frq % 60 == 0):
@@ -174,31 +162,43 @@ for img in image_generator:
                     yw1 = max(int(y1 - margin * h), 0)
                     xw2 = min(int(x2 + margin * w), img_w - 1)
                     yw2 = min(int(y2 + margin * h), img_h - 1)
-                    cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                    cv2.rectangle(rgb_image, (x1, y1), (x2, y2), (255, 0, 0), 2)
                     # cv2.rectangle(img, (xw1, yw1), (xw2, yw2), (255, 0, 0), 2)
-                    faces_age[i, :, :, :] = cv2.resize(img[yw1:yw2 + 1, xw1:xw2 + 1, :], (img_size, img_size))
+                    faces_age[i, :, :, :] = cv2.resize(rgb_image[yw1:yw2 + 1, xw1:xw2 + 1, :], (img_size, img_size))
+                    faces_age[i, :, :, :] = cv2.resize(rgb_image[y1:y2, x1:x2, :], (img_size, img_size))
 
                 # predict ages and genders of the detected faces
                 results = model.predict(faces_age)
-                predicted_genders = results[0]
                 ages = np.arange(0, 101).reshape(101, 1)
                 predicted_ages = results[1].dot(ages).flatten()
-                print(predicted_ages)
+                age_position = []
+                for i, d in enumerate(detected):
+                    age_position = str(int(predicted_ages[i]))
+
+
+        if gender_text == gender_labels[0]:
+            color = (0, 0, 255)
+        else:
+            color = (255, 0, 0)
+
+
         ###################
-
-        frq += 1
-
-
         if((face_coordinates[0] - face_coordinates[2]) > 50 and (face_coordinates[0] - face_coordinates[2]) < 180 and (face_coordinates[1]-80) > 20):
+            
             solid_box = draw_solid_box(face_coordinates, rgb_image)
             draw_bounding_box(face_coordinates, rgb_image, color)
             solid_box = Addemotion(face_coordinates,solid_box,icon_img)
             solid_box = Addemotion_word(face_coordinates,solid_box,words_img)
-            draw_text(face_coordinates, rgb_image, str(int(predicted_ages)),
-                    (255,255,255), 0, -20, 1, 1)
 
-            next_graph_controller = return_finish
-            next_graph_controller = "False"
+            print("-*---------")
+            print(face_coordinates)
+            print("----///////")
+            print(age_position)
+            print("----///////")
+            draw_text(face_coordinates, solid_box, age_position,
+                (255,255,255), 0, -20, 1, 1)
+            print("-*---------")
+        frq += 1
 
 
     bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
