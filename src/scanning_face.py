@@ -67,9 +67,9 @@ gender_window = []
 emotion_window = []
 
 
-
 class scanning_face():
     def __init__(self, flag, bgr_image):
+        print(os.path.abspath(''))
         self.flag = flag
         self.bgr_image = bgr_image
         self.frq = 0
@@ -189,7 +189,10 @@ class scanning_face():
                 solid_box = Addemotion_word(face_coordinates, solid_box, words_img)
                 draw_text(face_coordinates, rgb_image, str(int(predicted_ages))
                     ,(255, 255, 255), 0, -20, 1, 1)
+            
+            return rgb_image
 
 
 if __name__ == '__main__':
-    main()
+    a = scanning_face()
+    show_face_information()
