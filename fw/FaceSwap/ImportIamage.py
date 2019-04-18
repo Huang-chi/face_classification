@@ -1,8 +1,15 @@
 from os import listdir
 from os.path import isfile, isdir, join
 import random
+import os
 
-IMAGE_PATH = "../data/"
+scanning_face_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+# sys.path.append(scanning_face_path)
+print("22222")
+print(scanning_face_path)
+print("22222")
+
+IMAGE_PATH = scanning_face_path
 
 def import_image():
     files = listdir(IMAGE_PATH)
