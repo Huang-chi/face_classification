@@ -1,14 +1,4 @@
-from pathlib import Path
-import cv2
-import dlib
-import numpy as np
 import argparse
-# from contextlib import contextmanager
-from wide_resnet import WideResNet
-from keras.utils.data_utils import get_file
-
-# parameters for loading data and images
-
 
 
 def get_args():
@@ -27,11 +17,3 @@ def get_args():
                         help="target image directory; if set, images in image_dir are used instead of webcam")
     args = parser.parse_args()
     return args
-
-# @contextmanager
-# def video_capture(*args, **kwargs):
-#     cap = cv2.VideoCapture(*args, **kwargs)
-#     try:
-#         yield cap
-#     finally:
-#         cap.release()

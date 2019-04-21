@@ -27,6 +27,7 @@ def addTexture(img):
 
 class FaceRenderer:
     def __init__(self, targetImg, textureImg, textureCoords, mesh):
+
         self.h = targetImg.shape[0]
         self.w = targetImg.shape[1]
 
@@ -67,5 +68,5 @@ class FaceRenderer:
         for i in range(renderedImg.shape[2]):
             renderedImg[:, :, i] = np.flipud(renderedImg[:, :, i])
 
-        pygame.display.flip()
+        # pygame.display.flip()
         return renderedImg

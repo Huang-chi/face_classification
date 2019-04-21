@@ -1,8 +1,9 @@
 import numpy as np
 import cv2
-import models
+import models_face_fusion
 from dlib import rectangle
 import NonLinearLeastSquares
+
 
 def getNormal(triangle):
     a = triangle[:, 0]
@@ -18,8 +19,10 @@ def getNormal(triangle):
 
     return axisZ
 
+
 def flipWinding(triangle):
     return [triangle[1], triangle[0], triangle[2]]
+
 
 def fixMeshWinding(mesh, vertices):
     for i in range(mesh.shape[0]):
@@ -30,16 +33,17 @@ def fixMeshWinding(mesh, vertices):
 
     return mesh
 
+
 def getShape3D(mean3DShape, blendshapes, params):
-    #skalowanie
+    # skalowanie
     s = params[0]
-    #rotacja
+    # rotacja
     r = params[1:4]
-    #przesuniecie (translacja)
+    # przesuniecie (translacja)
     t = params[4:6]
     w = params[6:]
 
-    #macierz rotacji z wektora rotacji, wzor Rodriguesa
+    # macierz rotacji z wektora rotacji, wzor Rodriguesa
     R = cv2.Rodrigues(r)[0]
     shape3D = mean3DShape + np.sum(w[:, np.newaxis, np.newaxis] * blendshapes, axis=0)
 
@@ -48,8 +52,10 @@ def getShape3D(mean3DShape, blendshapes, params):
 
     return shape3D
 
+
 def getMask(renderedImg):
     mask = np.zeros(renderedImg.shape[:2], dtype=np.uint8)
+
 
 def load3DFaceModel(filename):
     faceModelFile = np.load(filename)
@@ -62,15 +68,16 @@ def load3DFaceModel(filename):
 
     return mean3DShape, blendshapes, mesh, idxs3D, idxs2D
 
+
 def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=640):
     imgScale = 1
     scaledImg = img
+
     if max(img.shape) > maxImgSizeForDetection:
         imgScale = maxImgSizeForDetection / float(max(img.shape))
         scaledImg = cv2.resize(img, (int(img.shape[1] * imgScale), int(img.shape[0] * imgScale)))
 
-
-    #detekcja twarzy
+    # detekcja twarzy
     dets = detector(scaledImg, 1)
 
     if len(dets) == 0:
@@ -80,11 +87,11 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=640):
     for det in dets:
         faceRectangle = rectangle(int(det.left() / imgScale), int(det.top() / imgScale), int(det.right() / imgScale), int(det.bottom() / imgScale))
 
-        #detekcja punktow charakterystycznych twarzy
+        # detekcja punktow charakterystycznych twarzy
         dlibShape = predictor(img, faceRectangle)
         
         shape2D = np.array([[p.x, p.y] for p in dlibShape.parts()])
-        #transpozycja, zeby ksztalt byl 2 x n a nie n x 2, pozniej ulatwia to obliczenia
+        # transpozycja, zeby ksztalt byl 2 x n a nie n x 2, pozniej ulatwia to obliczenia
         shape2D = shape2D.T
 
         shapes2D.append(shape2D)
@@ -93,7 +100,7 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=640):
     
 
 def getFaceTextureCoords(img, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor):
-    projectionModel = models.OrthographicProjectionBlendshapes(blendshapes.shape[0])
+    projectionModel = models_face_fusion.OrthographicProjectionBlendshapes(blendshapes.shape[0])
 
     keypoints = getFaceKeypoints(img, detector, predictor)[0]
     modelParams = projectionModel.getInitialParameters(mean3DShape[:, idxs3D], keypoints[:, idxs2D])

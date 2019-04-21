@@ -44,7 +44,6 @@ class Marquee(tk.Canvas):
             output_stream.append(index['text_content'])
         return output_stream
 
-        #print(jf['data']['hi_info']['login_ip'])
         
 root = tk.Tk()
 marquee = Marquee(root, text="Hello, world", borderwidth=20, relief="sunken")

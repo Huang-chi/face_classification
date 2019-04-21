@@ -1,19 +1,27 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+
+# import from python library
 import sys
 import cv2
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-from PyQt5.QtGui import QPalette, QBrush, QPixmap
+from PyQt5.QtGui import QPalette, QBrush, QPixmap, QFont
 import os
+import dlib
+import numpy as np
+import random
 
-import sys
+# import from self define module
+
+face_fusion_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),'src')
+print(face_fusion_path)
+sys.path.append(face_fusion_path)
 
 from statistics import mode
 
 from keras.models import load_model
-import numpy as np
 
 from utils.datasets import get_labels
 
@@ -35,10 +43,7 @@ from contextlib import contextmanager
 from wide_resnet import WideResNet
 import argparse
 from pathlib import Path
-import dlib
 
-
-import numpy as np
 
 from PIL import Image,ImageTk
 from utils.grad_cam import compile_gradient_function
@@ -50,28 +55,26 @@ from utils.inference import detect_faces
 from utils.inference import apply_offsets
 
 from utils.datasets import get_class_to_arg
-from DL_args import get_args
 
 
-#################
+# import age function module
 from test_function import get_args
 from test_function import draw_label
 from test_function import video_capture
 from test_function import yield_images
 from test_function import yield_images_from_dir
-#################
 
-#################
-import utils
-scanning_face_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'fw\FaceSwap')
-sys.path.append(scanning_face_path)
-print("22222")
-print(scanning_face_path)
-print("22222")
+# import face fusion module
+face_identification_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),'fw\FaceSwap')
+sys.path.append(face_identification_path)
+import models_face_fusion
+import utils_face_fusion
+import FaceRendering
 from ImportIamage import return_image_path
-#################
-
-
+from add_image import Add_image
+from ImportIamage import return_image_path
+import NonLinearLeastSquares
+import ImageProcessing
 
 global flag
 flag = True
@@ -80,11 +83,18 @@ IsRunning = True
 
 
 # parameters for loading data and images
-detection_model_path = '../trained_models/detection_models/haarcascade_frontalface_default.xml'
-emotion_model_path = '../trained_models/emotion_models/fer2013_mini_XCEPTION.102-0.66.hdf5'
-gender_model_path = '../trained_models/gender_models/simple_CNN.81-0.96.hdf5'
+predictor_path = "./fw/shape_predictor_68_face_landmarks.dat"
+detection_model_path = './trained_models/detection_models/haarcascade_frontalface_default.xml'
+emotion_model_path = './trained_models/emotion_models/fer2013_mini_XCEPTION.102-0.66.hdf5'
+gender_model_path = './trained_models/gender_models/simple_CNN.81-0.96.hdf5'
 emotion_labels = get_labels('fer2013')
 gender_labels = get_labels('imdb')
+detector = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor(predictor_path)
+hats = []
+for i in range(2):
+    hats.append(cv2.imread('hat%d.png' % i, -1))
+
 font = cv2.FONT_HERSHEY_SIMPLEX
 
 pretrained_model = "https://github.com/yu4u/age-gender-estimation/releases/download/v0.5/weights.28-3.73.hdf5"
@@ -138,15 +148,12 @@ model = WideResNet(img_size, depth=depth, k=k)()
 model.load_weights(weight_file)
 
 
-# image_generator = yield_images_from_dir(image_dir) if image_dir else yield_images()
-
 class Ui_MainWindow(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(Ui_MainWindow, self).__init__(parent)
-        
         # self.face_recong = face.Recognition()
         self.timer_camera = QtCore.QTimer()
-
+        self.timer_camera1 = QtCore.QTimer()
         self.cap = cv2.VideoCapture()
         self.CAM_NUM = 0
         self.set_ui()
@@ -156,40 +163,63 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.count = 0
         self.frq = 0
         self.age_position = []
+        self.image_name = None
+
+        pe = QPalette()
+        pe.setColor(QPalette.WindowText, Qt.white)
+        self.label.setAutoFillBackground(True)
+        pe.setColor(QPalette.Window, Qt.black)
+        self.label.setPalette(pe)
+        self.label.setFont(QFont("Roman times", 70, QFont.Bold))
+        
+        self.timeLine = QtCore.QTimeLine()  
+        self.timeLine.setCurveShape(3)                  # linear Timeline
+        self.timeLine.frameChanged.connect(self.setText)
+        self.timeLine.finished.connect(self.nextNews)           
+
+        self.feed()
+
+        # "1" is face idemtification, "2" is face fusion, "3" is AR
+        self.status = 0
 
     def set_ui(self):
-        
+        self.label = QtWidgets.QLabel('')                   # label showing the news
+        self.label.setAlignment(QtCore.Qt.AlignRight)           # text starts on the right
+
+        self.label.setFixedWidth(1150)
+        self.label.setFixedHeight(100)
+
         self.__layout_main = QtWidgets.QVBoxLayout()  # 垂直排版
         self.__layout_fun_button = QtWidgets.QHBoxLayout()  # 水平排版
         self.__layout_data_show = QtWidgets.QHBoxLayout()
         self.__layout_logo_show = QtWidgets.QHBoxLayout()
         
-        ##
-#         self.lb1 = QtWidgets.QLabel('實現夢想 在中正 ~！',self)
-#         self.lb1.resize(300,500)
-#         self.lb1.setFrameStyle(QFrame.Panel | QFrame.Sunken)
-#         self.lb1.setAlignment(Qt.AlignBottom | Qt.AlignRight)
-#         self.lb1.resultLabel.setText("<h2>實現夢想 在中正 ~！</h2>")
-        ##
+        self.__layout_main.setContentsMargins(0, 0, 0, 0)
+
         # Set image on the button  start
         ICON_HEIGHT = 300 
         ICON_WIDTH = 200
-        self.button_test = QtWidgets.QPushButton(u'')##  +button
-        self.button_test.setIcon(QtGui.QIcon('./img/AR.png'))
-        self.button_test.setIconSize(QtCore.QSize(ICON_HEIGHT, ICON_WIDTH))
+
+        self.button_change_face = QtWidgets.QPushButton(u'')  # button
+        self.button_change_face.setIcon(QtGui.QIcon('./fw/data/Tai-Tzu-ying.jpg'))
+        self.button_change_face.setIconSize(QtCore.QSize(ICON_HEIGHT, ICON_WIDTH))
+
+        self.button_AR_function = QtWidgets.QPushButton(u'')  # button
+        self.button_AR_function.setIcon(QtGui.QIcon('./src/img/AR.png'))
+        self.button_AR_function.setIconSize(QtCore.QSize(ICON_HEIGHT, ICON_WIDTH))
         
         self.button_open_camera = QtWidgets.QPushButton(u'')
-        self.button_open_camera.setIcon(QtGui.QIcon('./img/age_gender_emotion.png'))
+        self.button_open_camera.setIcon(QtGui.QIcon('./src/img/age_gender_emotion.png'))
         self.button_open_camera.setIconSize(QtCore.QSize(ICON_HEIGHT, ICON_WIDTH))
         
-        self.button_close = QtWidgets.QPushButton(u'')
-        self.button_close.setIcon(QtGui.QIcon('./img/face_fustion.PNG'))
-        self.button_close.setIconSize(QtCore.QSize(ICON_HEIGHT, ICON_WIDTH))
+        self.button_face_fusion = QtWidgets.QPushButton(u'')
+        self.button_face_fusion.setIcon(QtGui.QIcon('./src/img/face_fustion.PNG'))
+        self.button_face_fusion.setIconSize(QtCore.QSize(ICON_HEIGHT, ICON_WIDTH))
         
         # Set image on the button  end
         
         #Button 的顏色修改
-        button_color = [self.button_open_camera, self.button_close, self.button_test] ##  +button
+        button_color = [self.button_open_camera, self.button_face_fusion, self.button_AR_function]  # button
         for i in range(3):
             button_color[i].setStyleSheet("QPushButton{color:black}"
                                           "QPushButton:hover{color:red}"
@@ -203,24 +233,19 @@ class Ui_MainWindow(QtWidgets.QWidget):
         BUTTON_WIDTH = 40
         self.button_open_camera.setMinimumHeight(BUTTON_HEIGHT)
         self.button_open_camera.setMinimumWidth(BUTTON_WIDTH)
-        self.button_close.setMinimumHeight(BUTTON_HEIGHT)
-        self.button_close.setMinimumWidth(BUTTON_WIDTH)
-        self.button_test.setMinimumHeight(BUTTON_HEIGHT) # + button
-        self.button_test.setMinimumWidth(BUTTON_WIDTH)
-        # move()方法移動視窗在螢幕上的位置到x = 300，y = 300座標。
-#         self.move(300,300)
+        self.button_face_fusion.setMinimumHeight(BUTTON_HEIGHT)
+        self.button_face_fusion.setMinimumWidth(BUTTON_WIDTH)
+        self.button_AR_function.setMinimumHeight(BUTTON_HEIGHT)
+        self.button_AR_function.setMinimumWidth(BUTTON_WIDTH)
+
+        self.button_change_face.setMaximumHeight(BUTTON_HEIGHT)
+        self.button_change_face.setMaximumWidth(BUTTON_HEIGHT)
+
         self.setGeometry(100, 100, 1217, 684)
 
-    
-        # 全大運圖片
-        pix = QPixmap('./img/17.png')
-        self.lb1 = QLabel()
-        self.lb1.setFixedSize(300, 300)
-        self.lb1.setPixmap(pix)
-        
-        pix2 = QPixmap('./img/logo.png')
+        pix2 = QPixmap('')
         self.lb2 = QLabel()
-        self.lb2.setFixedSize(300, 330)
+        self.lb2.setFixedSize(175, 205)
         self.lb2.setPixmap(pix2)
         
         
@@ -232,28 +257,19 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.label_show_camera.setFixedSize(1060, 1000)   # Main frame size
         self.label_show_camera.setAutoFillBackground(False)
 
-#         self.__layout_fun_button.addWidget(self.label_move)
-
-        # layer main
-#         self.__layout_main.addLayout(self.__layout_data_show)
+        
+        self.__layout_main.addWidget(self.label)
         self.__layout_main.addWidget(self.lb2)
         self.__layout_main.addWidget(self.label_show_camera)
         self.__layout_main.addLayout(self.__layout_data_show)
         self.__layout_main.addLayout(self.__layout_fun_button)
         
-        # Layer data show
-#         self.__layout_logo_show.addWidget(self.lb2)
-#         self.__layout_logo_show.addWidget(self.lb2)
-#         self.__layout_logo_show.addWidget(self.lb2)
-        
-        self.__layout_data_show.addWidget(self.lb1)
-        self.__layout_data_show.addWidget(self.lb1)
-        self.__layout_data_show.addWidget(self.lb1)
+        self.__layout_data_show.addWidget(self.button_change_face)
         
         # layer button
         self.__layout_fun_button.addWidget(self.button_open_camera)
-        self.__layout_fun_button.addWidget(self.button_close)
-        self.__layout_fun_button.addWidget(self.button_test) # button
+        self.__layout_fun_button.addWidget(self.button_face_fusion)
+        self.__layout_fun_button.addWidget(self.button_AR_function)
         
         self.setLayout(self.__layout_main)
         self.label_move.raise_()
@@ -261,132 +277,185 @@ class Ui_MainWindow(QtWidgets.QWidget):
 
         # 設定背景圖片
         palette1 = QPalette()
-        palette1.setBrush(self.backgroundRole(), QBrush(QPixmap('./img/background_3.jpg')))
+        palette1.setBrush(self.backgroundRole(), QBrush(QPixmap('./src/img/background.png')))
         self.setPalette(palette1)
+
+    def feed(self):
+        self.nl = int(self.label.width()/70)
+        news = ['嘉義市政府為全力配合108年全國大專院校運動會，嘉義市拚運動及觀光經濟，配合','中正大學主辦今年全國大專校院運動會，全力支援賽事場地及交通接駁等周邊服務，市長黃敏惠與全大運吉祥物「阿里」、「阿桃」，到史蹟資料館前拍攝宣傳影片，歡迎各地選手及民眾來嘉義市小旅行。']
+        appendix = '　'*self.nl
+        news.append(appendix)
+        delimiter = ''                   # shown between the messages
+        self.news = delimiter.join(news)
+        newsLength = len(self.news)                 # number of letters in news = frameRange 
+        lps = 3                                # letters per second 
+        dur = newsLength*1000/lps               # duration until the whole string is shown in milliseconds                                          
+        self.timeLine.setDuration(dur)
+        self.timeLine.setFrameRange(0, newsLength) 
+        self.timeLine.start()
+
+    def setText(self, number_of_frame):   
+        if number_of_frame < self.nl:
+            start = 0
+        else:
+            start = number_of_frame - self.nl
+        text = '{}'.format(self.news[start:number_of_frame])        
+        self.label.setText(text)
+
+    def nextNews(self):
+        self.feed()                             # start again
 
 
     def slot_init(self):
         self.button_open_camera.clicked.connect(self.button_open_camera_click)
-        self.timer_camera.timeout.connect(self.show_camera)
-        self.button_close.clicked.connect(self.close)
-        # self.timer_camera.timeout.connect(self.face_Fusion)
-        # self.button_test.clicked.connect(self.face_Fusion)
+        # self.button_open_camera.clicked.connect(self.show_camera)
+        self.timer_camera.timeout.connect(self.face_Identification)
+        self.timer_camera1.timeout.connect(self.face_Fusion)
+        self.button_face_fusion.clicked.connect(self.face_fusion_click)
+        # self.button_AR_function.clicked.connect(self.button_open_AR)
+        self.button_change_face.clicked.connect(self.change_button_icon_and_face_fusion_image)
     
-    def test_click(self, flag):
-                
-        if self.timer_camera.isActive() == False:
+
+
+
+    def change_button_icon_and_face_fusion_image(self):
+        print("---- Change face -----")
+        print(self.image_name)
+        self.image_name = return_image_path()
+        self.button_change_face.setIcon(QtGui.QIcon(self.image_name))
+        self.textureImg = cv2.imread(self.image_name)
+
+    def face_fusion_click(self, flag):
+        self.image_name = return_image_path()
+        self.button_change_face.setIcon(QtGui.QIcon(self.image_name))
+        print("--- Timer camera1 status ----")
+        print(self.timer_camera1.isActive())
+        if self.timer_camera1.isActive() == False:
+            self.button_face_fusion.setStyleSheet("background-color:rgb(139,129,76)")
             flag = self.cap.open(self.CAM_NUM)
             if flag == False:
                 msg = QtWidgets.QMessageBox.warning(self, u"Warning", u"請檢測相機與電腦是否連線正確", buttons=QtWidgets.QMessageBox.Ok,
                                                 defaultButton=QtWidgets.QMessageBox.Ok)
-            # if msg==QtGui.QMessageBox.Cancel:
-            #                     pass
             else:
-                self.timer_camera.start(60)
-#                 self.button_open_camera.setText(u'關閉相機')
+                print("timer_camera1")
+                self.status = 2
+                self.timer_camera1.start(30)
         else:
-            self.timer_camera.stop()
-            self.cap.release()
+            self.status = 0
+            self.button_face_fusion.setStyleSheet("background-color:rgb(205,190,112)")
+            self.timer_camera1.stop()
+            # self.cap.release()
             self.label_show_camera.clear()
-#             self.button_open_camera.setText(u'開啟相機')
 
 
     def button_open_camera_click(self):
-        self.button_open_camera.setStyleSheet("background-color:rgb(139,129,76)")
         if self.timer_camera.isActive() == False:
+            self.button_open_camera.setStyleSheet("background-color:rgb(139,129,76)")
+
             flag = self.cap.open(self.CAM_NUM)
             if flag == False:
                 msg = QtWidgets.QMessageBox.warning(self, u"Warning", u"請檢測相機與電腦是否連線正確", buttons=QtWidgets.QMessageBox.Ok,
                                                 defaultButton=QtWidgets.QMessageBox.Ok)
-            # if msg==QtGui.QMessageBox.Cancel:
-            #                     pass
             else:
-                self.timer_camera.start(60)
+                self.status = 1
+                self.timer_camera.start(30)
                 self.button_open_camera.setText(u'')
         else:
+            self.status = 0
+            self.button_open_camera.setStyleSheet("background-color:rgb(205,190,112)")
             self.timer_camera.stop()
-            self.cap.release()
             self.label_show_camera.clear()
-#             self.button_open_camera.setText(u'開啟相機')
 
 #############
     def face_Fusion(self):
-        model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'fw\shape_predictor_68_face_landmarks.dat')
-        predictor_path = model_path
-        #predictor_path = "../shape_predictor_68_face_landmarks.dat"
 
-        #image_name = "../data/.png"
-        #the smaller this value gets the faster the detection will work
-        #if it is too small, the user's face might not be detected
-        maxImageSizeForDetection = 320
+        print("----- Face fusion function is running -----")
+        print(self.status)
 
-        detector = dlib.get_frontal_face_detector()
-        predictor = dlib.shape_predictor(predictor_path)
-        mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils.load3DFaceModel("../candide.npz")
+        self.count=self.count+1
+        #loading the keypoint detection model, the image and the 3D model
+        
 
-        projectionModel = models.OrthographicProjectionBlendshapes(blendshapes.shape[0])
-
-        modelParams = None
-        lockedTranslation = False
-        drawOverlay = False
-        #cv2.namedWindow('window_frame')
-        cap = cv2.VideoCapture(cv2.CAP_DSHOW)
-
-        writer = None
-        cameraImg = cap.read()[1]
-
-
-        while IsRunning:
-            textureCoords = utils.getFaceTextureCoords(self.textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
-            renderer = FaceRendering.FaceRenderer(cameraImg, self.textureImg, textureCoords, mesh)
-            cameraImg = cap.read()[1]
-            shapes2D = utils.getFaceKeypoints(cameraImg, detector, predictor, maxImageSizeForDetection)
-
-            if shapes2D is not None:
-                for shape2D in shapes2D:
-                    #3D model parameter initialization
-                    modelParams = projectionModel.getInitialParameters(mean3DShape[:, idxs3D], shape2D[:, idxs2D])
-
-                    #3D model parameter optimization
-                    modelParams = NonLinearLeastSquares.GaussNewton(modelParams, projectionModel.residual, projectionModel.jacobian, ([mean3DShape[:, idxs3D], blendshapes[:, :, idxs3D]], shape2D[:, idxs2D]), verbose=0)
-
-                    #rendering the model to an image
-                    shape3D = utils.getShape3D(mean3DShape, blendshapes, modelParams)
-                    renderedImg = renderer.render(shape3D)
-
-                    #blending of the rendered face with the image
-                    mask = np.copy(renderedImg[:, :, 0])
-                    renderedImg = ImageProcessing.colorTransfer(cameraImg, renderedImg, mask)
-                    cameraImg = ImageProcessing.blendImages(renderedImg, cameraImg, mask)
-
-
-                    #drawing of the mesh and keypoints
-                    if drawOverlay:
-                        drawPoints(cameraImg, shape2D.T)
-                        drawProjectedShape(cameraImg, [mean3DShape, blendshapes], projectionModel, mesh, modelParams, lockedTranslation)
-            #imgg=self.textureImg
-            #imgg = cv2.resize(imgg,(100,100))
-            #cameraImg = Add_image(cameraImg,imgg)
+        if self.count == 1:
+            cameraImg = self.cap.read()[1]
             
-            if writer is not None:
-                writer.write(cameraImg)
+            # import image path
             
-            #fig = plt.figure()
-            #ax = fig.add_subplot(211)
-            #ax.imshow(cameraImg)
-            #plt.draw()
-            self.image = cameraImg
-            show = cv2.resize(self.image,(640,480))     #把读到的帧的大小重新设置为 640x480
-            show = cv2.cvtColor(show,cv2.COLOR_BGR2RGB) #视频色彩转换回RGB，这样才是现实的颜色
-            showImage = QtGui.QImage(show.data,show.shape[1],show.shape[0],QtGui.QImage.Format_RGB888) #把读取到的视频数据变成QImage形式
-            self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage)) 
+            self.textureImg = cv2.imread(self.image_name)
+            
+            maxImageSizeForDetection = 320
+
+            detector = dlib.get_frontal_face_detector()
+            mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils_face_fusion.load3DFaceModel("./fw/candide.npz")
+
+            projectionModel = models_face_fusion.OrthographicProjectionBlendshapes(blendshapes.shape[0])
+            
+
+            modelParams = None
+            lockedTranslation = False
+            drawOverlay = False
+            # cap = cv2.VideoCapture(cv2.CAP_DSHOW)
+
+            writer = None
+            cameraImg = self.cap.read()[1]
+            self.textureImg = cv2.imread(self.image_name)
+            while True:
+                
+                if(self.status != 2):
+                    print("end")
+                    break
+
+                textureCoords = utils_face_fusion.getFaceTextureCoords(self.textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
+                renderer = FaceRendering.FaceRenderer(cameraImg, self.textureImg, textureCoords, mesh)
+                cameraImg = self.cap.read()[1]
+
+                shapes2D = utils_face_fusion.getFaceKeypoints(cameraImg, detector, predictor, maxImageSizeForDetection)
+
+                if shapes2D is not None:
+                    for shape2D in shapes2D:
+                        #3D model parameter initialization
+                        modelParams = projectionModel.getInitialParameters(mean3DShape[:, idxs3D], shape2D[:, idxs2D])
+
+                        #3D model parameter optimization
+                        modelParams = NonLinearLeastSquares.GaussNewton(modelParams, projectionModel.residual, projectionModel.jacobian, ([mean3DShape[:, idxs3D], blendshapes[:, :, idxs3D]], shape2D[:, idxs2D]), verbose=0)
+
+                        #rendering the model to an image
+                        shape3D = utils_face_fusion.getShape3D(mean3DShape, blendshapes, modelParams)
+                        renderedImg = renderer.render(shape3D)
+
+                        #blending of the rendered face with the image
+                        mask = np.copy(renderedImg[:, :, 0])
+                        renderedImg = ImageProcessing.colorTransfer(cameraImg, renderedImg, mask)
+                        cameraImg = ImageProcessing.blendImages(renderedImg, cameraImg, mask)
+
+
+                        #drawing of the mesh and keypoints
+                        if drawOverlay:
+                            drawPoints(cameraImg, shape2D.T)
+                            drawProjectedShape(cameraImg, [mean3DShape, blendshapes], projectionModel, mesh, modelParams, lockedTranslation)
+                imgg=self.textureImg
+                imgg = cv2.resize(imgg,(100,100))
+                cameraImg = Add_image(cameraImg,imgg)
+            
+                if writer is not None:
+                    writer.write(cameraImg)
+            
+                self.image = cameraImg
+                show = cv2.resize(self.image,(1080,960))     #把读到的帧的大小重新设置为 640x480
+                show = cv2.cvtColor(show,cv2.COLOR_BGR2RGB) #视频色彩转换回RGB，这样才是现实的颜色
+                showImage = QtGui.QImage(show.data,show.shape[1],show.shape[0],QtGui.QImage.Format_RGB888) #把读取到的视频数据变成QImage形式
+                self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage)) 
+
+            if(self.status != 2):
+                print("end")
+                return None
 ##################
 
-    def show_camera(self):
-        
+    def face_Identification(self):
         flag, bgr_image = self.cap.read()
+        if(self.status != 1):
+            return None
         if flag:
-            # bgr_image = img
             gray_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
             rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
             faces = detect_faces(face_detection, gray_image)
@@ -422,6 +491,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 # gender_window.append(English_2_chinese_gender(gender_text))
 
                 set_icon = emotion_text+"_"+gender_text
+                print("----- emotion + gender -----")
                 print(set_icon)
                 icon_img = icon_dict[set_icon]
                 words_img = words_dict[set_icon]
@@ -431,7 +501,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         
                     # detect faces using dlib detector
                     detected = detector(rgb_image, 1)
-                    print(detected)
+
                     faces_age = np.empty((len(detected), img_size, img_size, 3))
         
                     if len(detected) > 0:
@@ -451,8 +521,10 @@ class Ui_MainWindow(QtWidgets.QWidget):
                         ages = np.arange(0, 101).reshape(101, 1)
                         predicted_ages = results[1].dot(ages).flatten()
                         self.age_position = []
+                        print("----- age -----")
                         print(predicted_ages)
                         for i, d in enumerate(detected):
+                            print("-----every ages -----")
                             print(i,d)
                             self.age_position = str(int(predicted_ages[i]))
 
@@ -462,34 +534,20 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 else:
                     color = (255, 0, 0)
 
-
-                ###################
                 if((face_coordinates[0] - face_coordinates[2]) > 50 and (face_coordinates[0] - face_coordinates[2]) < 180 and (face_coordinates[1]-80) > 20):
-            
                     solid_box = draw_solid_box(face_coordinates, rgb_image)
                     draw_bounding_box(face_coordinates, rgb_image, color)
                     solid_box = Addemotion(face_coordinates,solid_box,icon_img)
                     solid_box = Addemotion_word(face_coordinates,solid_box,words_img)
-
-                    print("-*---------")
-                    print(face_coordinates)
-                    print("----///////")
-                    print(self.age_position)
-                    print("----///////")
                     draw_text(face_coordinates, solid_box, self.age_position,
                         (255,255,255), 0, -20, 1, 1)
-                    print("----------")
-                print(self.frq)
+                
                 self.frq += 1
-            
+
             bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
             show = cv2.resize(rgb_image, (1080, 960))
             showImage = QtGui.QImage(show, show.shape[1], show.shape[0], QtGui.QImage.Format_RGB888)
             self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage))
-    #bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
-    #cv2.imshow('window_frame', bgr_image)
-    #if cv2.waitKey(1) & 0xFF == ord('q'):
-        #exit(0)
 
         
     def closeEvent(self, event):
@@ -510,6 +568,8 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 self.cap.release()
             if self.timer_camera.isActive():
                 self.timer_camera.stop()
+            if self.timer_camera1.isActive():
+                self.timer_camera1.stop()
             event.accept() 
             
 

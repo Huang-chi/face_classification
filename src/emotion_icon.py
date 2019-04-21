@@ -5,9 +5,9 @@ angry_man = None
 ICON_SIZE = (40, 40)
 WORDS_SIZE = (160, 90)
 
-ICON_IMG_PATH = "./img/emotion/"
-WORD_IMG_PATH = "./img/emotion_word/"
-IMG_PATH = "./img_1/"
+ICON_IMG_PATH = "./src/img/emotion/"
+WORD_IMG_PATH = "./src/img/emotion_word/"
+IMG_PATH = "./src/img_1/"
 
 
 EMOTION_ICON = [
