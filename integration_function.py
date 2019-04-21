@@ -91,13 +91,7 @@ emotion_labels = get_labels('fer2013')
 gender_labels = get_labels('imdb')
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(predictor_path)
-hats = []
 
-for i in range(2):
-    hats.append(cv2.imread('./AR_img/hat%d.png' % i, -1))
-
-face_patterns = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-eye           = cv2.CascadeClassifier('haarcascade_eye.xml')
 
 font = cv2.FONT_HERSHEY_SIMPLEX
 
@@ -159,6 +153,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.timer_camera = QtCore.QTimer()
         self.timer_camera1 = QtCore.QTimer()
         self.timer_camera2 = QtCore.QTimer()
+        self.timer_camera0 = QtCore.QTimer()
         self.cap = cv2.VideoCapture(0)
         self.CAM_NUM = 0
         self.set_ui()
@@ -228,7 +223,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         for i in range(3):
             button_color[i].setStyleSheet("QPushButton{color:black}"
                                           "QPushButton:hover{color:red}"
-                                          "QPushButton{background-color:rgb(205,190,112)}"
+                                          "QPushButton{background-color:rgb(160, 160, 160)}"
                                           "QPushButton{border:2px}"
                                           "QPushButton{border-radius:10px}"
                                           "QPushButton{padding:2px 4px}")
@@ -321,6 +316,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.timer_camera.timeout.connect(self.face_Identification)
         self.timer_camera1.timeout.connect(self.face_Fusion)
         self.timer_camera2.timeout.connect(self.AR_function)
+        self.timer_camera0.timeout.connect(self.show_camera)
 
         # Change image_name button
         self.button_change_face.clicked.connect(self.change_button_icon_and_face_fusion_image)
@@ -330,7 +326,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         print(self.timer_camera2.isActive())
 
         if self.timer_camera2.isActive() == False:
-            self.button_AR_function.setStyleSheet("background-color:rgb(139,129,76)")
+            self.button_AR_function.setStyleSheet("background-color:rgb(95, 97, 103)")
             flag = self.cap.open(self.CAM_NUM)
 
             if flag == False:
@@ -343,13 +339,24 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 self.timer_camera2.start(30)
         else:
             self.status = 0
-            self.button_AR_function.setStyleSheet("background-color:rgb(205,190,112)")
+            self.button_AR_function.setStyleSheet("background-color:rgb(160, 160, 160)")
             self.timer_camera2.stop()
             self.cap.release()
             self.label_show_camera.clear()
 
     def AR_function(self):
+        # import AR accessories
+        face_patterns = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+        eye = cv2.CascadeClassifier('haarcascade_eye.xml')
+        hats = []
+        eyes = []
+        for i in range(2):
+            hats.append(cv2.imread('./AR_img/hat%d.png' % i, -1))
+            eyes.append(cv2.imread('./AR_img/glass%d.png' % i, -1))
+        
+        print("------- AR function is running --------")
         ret, sample_image = self.cap.read()
+        print(sample_image)
         centers = []
         while True:
             img_gray = cv2.cvtColor(sample_image, cv2.COLOR_BGR2GRAY,1)
@@ -357,37 +364,62 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 img_gray,
                 scaleFactor=1.1,
                 minNeighbors=5,
-                minSize=(20, 20)
+                minSize=(10, 10)
             )
             for face in faces:
+                print(face)
                 x,y,w,h = face
             # 取帽子
-                hat = random.choice(hats)
+            hat = random.choice(hats)
+            # 取眼鏡
+            eye = random.choice(eyes)
             # 调整帽子尺寸
-                scale = h / hat.shape[0] * 1.0
-                hat = cv2.resize(hat, (0, 0), fx=scale, fy=scale)
+            scale = h / hat.shape[0] * 1.0
+            hat = cv2.resize(hat, (0, 0), fx=scale, fy=scale)
+            scale = h / eye.shape[0] * 0.4
+            eye = cv2.resize(eye, (0, 0), fx=scale, fy=scale)
+        
             # 根据人臉放帽子位置
-                x_offset = int(x + w / 2 - hat.shape[1] / 2)
-                y_offset = int(y - hat.shape[0]/1.5)
+            x_offset = int(x + w / 2 - hat.shape[1] / 2)
+            y_offset = int(y - hat.shape[0]/1.5)
+        
             # 算位置
-                x1, x2 = max(x_offset, 0), min(x_offset + hat.shape[1], sample_image.shape[1])
-                y1, y2 = max(y_offset, 0), min(y_offset + hat.shape[0], sample_image.shape[0])
-                hat_x1 = max(0, -x_offset)
-                hat_x2 = hat_x1 + x2 - x1
-                hat_y1 = max(0, -y_offset)
-                hat_y2 = hat_y1 + y2 - y1
+            x1, x2 = max(x_offset, 0), min(x_offset + hat.shape[1], sample_image.shape[1])
+            y1, y2 = max(y_offset, 0), min(y_offset + hat.shape[0], sample_image.shape[0])
+            hat_x1 = max(0, -x_offset)
+            hat_x2 = hat_x1 + x2 - x1
+            hat_y1 = max(0, -y_offset)
+            hat_y2 = hat_y1 + y2 - y1
+        
+            # 根据人臉放眼鏡位置
+            x_offset = int(x + w / 2 - eye.shape[1] / 2)
+            y_offset = int(y + h/2 - eye.shape[0]/1.5)
+     
+            # 算位置
+            x11, x22 = max(x_offset, 0), min(x_offset + eye.shape[1], sample_image.shape[1])
+            y11, y22 = max(y_offset, 0), min(y_offset + eye.shape[0], sample_image.shape[0])
+            eye_x1 = max(0, -x_offset)
+            eye_x2 = eye_x1 + x22 - x11
+            eye_y1 = max(0, -y_offset)
+            eye_y2 = eye_y1 + y22 - y11
+        
+            # 透明部分的處理 eye
+            alpha_h_eye = eye[eye_y1:eye_y2, eye_x1:eye_x2, 3] / 255
+            alpha_eye = 1 - alpha_h_eye
+        
             # 透明部分的處理
-                alpha_h = hat[hat_y1:hat_y2, hat_x1:hat_x2, 3] / 255
-                alpha = 1 - alpha_h
+            alpha_h = hat[hat_y1:hat_y2, hat_x1:hat_x2, 3] / 255
+            alpha = 1 - alpha_h
+        
             # 按3个通道合并图片
-                for c in range(0, 3):
-                    sample_image[y1:y2, x1:x2, c] = (alpha_h * hat[hat_y1:hat_y2, hat_x1:hat_x2, c] + alpha * sample_image[y1:y2, x1:x2, c])
-                
-                # bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
-                show = cv2.resize(sample_image, (1080, 960))
-                showImage = QtGui.QImage(show, show.shape[1], show.shape[0], QtGui.QImage.Format_RGB888)
-                self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage))
-
+            for c in range(0, 3):
+                sample_image[y1:y2, x1:x2, c] = (alpha_h * hat[hat_y1:hat_y2, hat_x1:hat_x2, c] + alpha * sample_image[y1:y2, x1:x2, c])
+                sample_image[y11:y22, x11:x22, c] = (alpha_h_eye * eye[eye_y1:eye_y2, eye_x1:eye_x2, c] + alpha_eye * sample_image[y11:y22, x11:x22, c])
+    
+            # bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
+            show = cv2.resize(sample_image, (1080, 960))
+            showImage = QtGui.QImage(show, show.shape[1], show.shape[0], QtGui.QImage.Format_RGB888)
+            self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage))
 
     def change_button_icon_and_face_fusion_image(self):
         print("---- Change face -----")
@@ -404,7 +436,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         print(self.timer_camera1.isActive())
 
         if self.timer_camera1.isActive() == False:
-            self.button_face_fusion.setStyleSheet("background-color:rgb(139,129,76)")
+            self.button_face_fusion.setStyleSheet("background-color:rgb(95, 97, 103)")
 
             flag = self.cap.open(self.CAM_NUM)
             if flag == False:
@@ -412,40 +444,48 @@ class Ui_MainWindow(QtWidgets.QWidget):
                                                 defaultButton=QtWidgets.QMessageBox.Ok)
             else:
                 print("timer_camera1")
-                self.timer_camera.stop()
                 self.status = 2
                 self.timer_camera1.start(30)
         else:
             self.status = 0
-            self.button_face_fusion.setStyleSheet("background-color:rgb(205,190,112)")
+            self.button_face_fusion.setStyleSheet("background-color:rgb(160, 160, 160)")
             self.timer_camera1.stop()
             self.cap.release()
-            self.label_show_camera.clear()
 
+            # flag = self.cap.open(self.CAM_NUM)
+            # self.timer_camera0.start(30)
+            self.label_show_camera.clear()
+    
+    def show_camera(self):
+        flag, self.image = self.cap.read()
+        show = cv2.resize(self.image, (640, 480))
+        show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
+
+        showImage = QtGui.QImage(show.data, show.shape[1], show.shape[0], QtGui.QImage.Format_RGB888)
+        self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage))
+
+ 
 
     def button_open_camera_click(self):
         if self.timer_camera.isActive() == False:
-            self.button_open_camera.setStyleSheet("background-color:rgb(139,129,76)")
+            self.button_open_camera.setStyleSheet("background-color:rgb(95, 97, 103)")
             flag = self.cap.open(self.CAM_NUM)
             if flag == False:
                 msg = QtWidgets.QMessageBox.warning(self, u"Warning", u"請檢測相機與電腦是否連線正確", buttons=QtWidgets.QMessageBox.Ok,
                                                 defaultButton=QtWidgets.QMessageBox.Ok)
             else:
-                self.timer_camera1.stop()
+                print("timer_camera")
                 self.status = 1
                 self.timer_camera.start(30)
         else:
             self.status = 0
-            self.button_open_camera.setStyleSheet("background-color:rgb(205,190,112)")
+            self.button_open_camera.setStyleSheet("background-color:rgb(160, 160, 160)")
             self.timer_camera.stop()
             self.cap.release()
             self.label_show_camera.clear()
 
     def face_Fusion(self):
-        if(self.status != 2):
-            print("end1")
-            return None
-        print("----- Face fusion function is running -----")
+        print("----- Face fusion function is start -----")
         print(self.status)
 
         # cameraImg = self.cap.read()[1]
@@ -474,6 +514,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         # renderer = FaceRendering.FaceRenderer(cameraImg, self.textureImg, textureCoords, mesh)
 
         while True:
+            print("----- Face fusion function is running -----")
             cameraImg = self.cap.read()[1]
             if(self.status != 2):
                 print("end2")
@@ -518,6 +559,10 @@ class Ui_MainWindow(QtWidgets.QWidget):
             show = cv2.cvtColor(show,cv2.COLOR_BGR2RGB) #视频色彩转换回RGB，这样才是现实的颜色
             showImage = QtGui.QImage(show.data,show.shape[1],show.shape[0],QtGui.QImage.Format_RGB888) #把读取到的视频数据变成QImage形式
             self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage)) 
+        if(self.status != 2):
+            self.label_show_camera.clear()
+            print("end1")
+            return None
 
 
     def face_Identification(self):
@@ -595,7 +640,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
                         for i, d in enumerate(detected):
                             print("-----every ages -----")
                             print(i,d)
-                            self.age_position = str(int(predicted_ages[i]))
+                            self.age_position = str(int(predicted_ages[i] * 0.65))
 
 
                 if gender_text == gender_labels[0]:
