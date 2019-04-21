@@ -84,13 +84,13 @@ class OrthographicProjectionBlendshapes(Model):
 
         stepSize = 10e-4
         step = np.zeros(self.nParams)
-        step[1] = stepSize;
+        step[1] = stepSize
         jacobian[:, 1] = ((self.fun(x, params + step) - self.fun(x, params)) / stepSize).flatten()
         step = np.zeros(self.nParams)
-        step[2] = stepSize;
+        step[2] = stepSize
         jacobian[:, 2] = ((self.fun(x, params + step) - self.fun(x, params)) / stepSize).flatten()
         step = np.zeros(self.nParams)
-        step[3] = stepSize;
+        step[3] = stepSize
         jacobian[:, 3] = ((self.fun(x, params + step) - self.fun(x, params)) / stepSize).flatten()
 
         jacobian[:nPoints, 4] = 1
@@ -102,7 +102,7 @@ class OrthographicProjectionBlendshapes(Model):
 
         return jacobian
 
-    #nie uzywane
+    # nie uzywane
     def getExampleParameters(self):
         params = np.zeros(self.nParams)
         params[0] = 1

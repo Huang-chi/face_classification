@@ -92,8 +92,12 @@ gender_labels = get_labels('imdb')
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(predictor_path)
 hats = []
+
 for i in range(2):
-    hats.append(cv2.imread('hat%d.png' % i, -1))
+    hats.append(cv2.imread('./AR_img/hat%d.png' % i, -1))
+
+face_patterns = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+eye           = cv2.CascadeClassifier('haarcascade_eye.xml')
 
 font = cv2.FONT_HERSHEY_SIMPLEX
 
@@ -154,7 +158,8 @@ class Ui_MainWindow(QtWidgets.QWidget):
         # self.face_recong = face.Recognition()
         self.timer_camera = QtCore.QTimer()
         self.timer_camera1 = QtCore.QTimer()
-        self.cap = cv2.VideoCapture()
+        self.timer_camera2 = QtCore.QTimer()
+        self.cap = cv2.VideoCapture(0)
         self.CAM_NUM = 0
         self.set_ui()
         self.slot_init()
@@ -307,15 +312,81 @@ class Ui_MainWindow(QtWidgets.QWidget):
 
 
     def slot_init(self):
+        # Fumctial button clicked
         self.button_open_camera.clicked.connect(self.button_open_camera_click)
-        # self.button_open_camera.clicked.connect(self.show_camera)
+        self.button_face_fusion.clicked.connect(self.face_fusion_click)
+        self.button_AR_function.clicked.connect(self.button_open_AR)
+
+        # Timer connect
         self.timer_camera.timeout.connect(self.face_Identification)
         self.timer_camera1.timeout.connect(self.face_Fusion)
-        self.button_face_fusion.clicked.connect(self.face_fusion_click)
-        # self.button_AR_function.clicked.connect(self.button_open_AR)
-        self.button_change_face.clicked.connect(self.change_button_icon_and_face_fusion_image)
-    
+        self.timer_camera2.timeout.connect(self.AR_function)
 
+        # Change image_name button
+        self.button_change_face.clicked.connect(self.change_button_icon_and_face_fusion_image)
+ 
+    def button_open_AR(self):
+        print("--- Timer camera2 status ----")
+        print(self.timer_camera2.isActive())
+
+        if self.timer_camera2.isActive() == False:
+            self.button_AR_function.setStyleSheet("background-color:rgb(139,129,76)")
+            flag = self.cap.open(self.CAM_NUM)
+
+            if flag == False:
+                msg = QtWidgets.QMessageBox.warning(self, u"Warning", u"請檢測相機與電腦是否連線正確", buttons=QtWidgets.QMessageBox.Ok,
+                                                defaultButton=QtWidgets.QMessageBox.Ok)
+            else:
+                print("timer_camera2")
+                # self.timer_camera.stop()
+                self.status = 2
+                self.timer_camera2.start(30)
+        else:
+            self.status = 0
+            self.button_AR_function.setStyleSheet("background-color:rgb(205,190,112)")
+            self.timer_camera2.stop()
+            self.cap.release()
+            self.label_show_camera.clear()
+
+    def AR_function(self):
+        ret, sample_image = self.cap.read()
+        centers = []
+        while True:
+            img_gray = cv2.cvtColor(sample_image, cv2.COLOR_BGR2GRAY,1)
+            faces = face_patterns.detectMultiScale(
+                img_gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(20, 20)
+            )
+            for face in faces:
+                x,y,w,h = face
+            # 取帽子
+                hat = random.choice(hats)
+            # 调整帽子尺寸
+                scale = h / hat.shape[0] * 1.0
+                hat = cv2.resize(hat, (0, 0), fx=scale, fy=scale)
+            # 根据人臉放帽子位置
+                x_offset = int(x + w / 2 - hat.shape[1] / 2)
+                y_offset = int(y - hat.shape[0]/1.5)
+            # 算位置
+                x1, x2 = max(x_offset, 0), min(x_offset + hat.shape[1], sample_image.shape[1])
+                y1, y2 = max(y_offset, 0), min(y_offset + hat.shape[0], sample_image.shape[0])
+                hat_x1 = max(0, -x_offset)
+                hat_x2 = hat_x1 + x2 - x1
+                hat_y1 = max(0, -y_offset)
+                hat_y2 = hat_y1 + y2 - y1
+            # 透明部分的處理
+                alpha_h = hat[hat_y1:hat_y2, hat_x1:hat_x2, 3] / 255
+                alpha = 1 - alpha_h
+            # 按3个通道合并图片
+                for c in range(0, 3):
+                    sample_image[y1:y2, x1:x2, c] = (alpha_h * hat[hat_y1:hat_y2, hat_x1:hat_x2, c] + alpha * sample_image[y1:y2, x1:x2, c])
+                
+                # bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
+                show = cv2.resize(sample_image, (1080, 960))
+                showImage = QtGui.QImage(show, show.shape[1], show.shape[0], QtGui.QImage.Format_RGB888)
+                self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage))
 
 
     def change_button_icon_and_face_fusion_image(self):
@@ -326,130 +397,128 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.textureImg = cv2.imread(self.image_name)
 
     def face_fusion_click(self, flag):
+
         self.image_name = return_image_path()
         self.button_change_face.setIcon(QtGui.QIcon(self.image_name))
         print("--- Timer camera1 status ----")
         print(self.timer_camera1.isActive())
+
         if self.timer_camera1.isActive() == False:
             self.button_face_fusion.setStyleSheet("background-color:rgb(139,129,76)")
+
             flag = self.cap.open(self.CAM_NUM)
             if flag == False:
                 msg = QtWidgets.QMessageBox.warning(self, u"Warning", u"請檢測相機與電腦是否連線正確", buttons=QtWidgets.QMessageBox.Ok,
                                                 defaultButton=QtWidgets.QMessageBox.Ok)
             else:
                 print("timer_camera1")
+                self.timer_camera.stop()
                 self.status = 2
                 self.timer_camera1.start(30)
         else:
             self.status = 0
             self.button_face_fusion.setStyleSheet("background-color:rgb(205,190,112)")
             self.timer_camera1.stop()
-            # self.cap.release()
+            self.cap.release()
             self.label_show_camera.clear()
 
 
     def button_open_camera_click(self):
         if self.timer_camera.isActive() == False:
             self.button_open_camera.setStyleSheet("background-color:rgb(139,129,76)")
-
             flag = self.cap.open(self.CAM_NUM)
             if flag == False:
                 msg = QtWidgets.QMessageBox.warning(self, u"Warning", u"請檢測相機與電腦是否連線正確", buttons=QtWidgets.QMessageBox.Ok,
                                                 defaultButton=QtWidgets.QMessageBox.Ok)
             else:
+                self.timer_camera1.stop()
                 self.status = 1
                 self.timer_camera.start(30)
-                self.button_open_camera.setText(u'')
         else:
             self.status = 0
             self.button_open_camera.setStyleSheet("background-color:rgb(205,190,112)")
             self.timer_camera.stop()
+            self.cap.release()
             self.label_show_camera.clear()
 
-#############
     def face_Fusion(self):
-
+        if(self.status != 2):
+            print("end1")
+            return None
         print("----- Face fusion function is running -----")
         print(self.status)
 
-        self.count=self.count+1
-        #loading the keypoint detection model, the image and the 3D model
-        
-
-        if self.count == 1:
-            cameraImg = self.cap.read()[1]
+        # cameraImg = self.cap.read()[1]
             
             # import image path
             
-            self.textureImg = cv2.imread(self.image_name)
+        self.textureImg = cv2.imread(self.image_name)
             
-            maxImageSizeForDetection = 320
+        maxImageSizeForDetection = 320
+        detector = dlib.get_frontal_face_detector()
+        mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils_face_fusion.load3DFaceModel("./fw/candide.npz")
 
-            detector = dlib.get_frontal_face_detector()
-            mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils_face_fusion.load3DFaceModel("./fw/candide.npz")
-
-            projectionModel = models_face_fusion.OrthographicProjectionBlendshapes(blendshapes.shape[0])
+        projectionModel = models_face_fusion.OrthographicProjectionBlendshapes(blendshapes.shape[0])
             
 
-            modelParams = None
-            lockedTranslation = False
-            drawOverlay = False
+        modelParams = None
+        lockedTranslation = False
+        drawOverlay = False
             # cap = cv2.VideoCapture(cv2.CAP_DSHOW)
 
-            writer = None
+        writer = None
+        cameraImg = self.cap.read()[1]
+        self.textureImg = cv2.imread(self.image_name)
+
+        # textureCoords = utils_face_fusion.getFaceTextureCoords(self.textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
+        # renderer = FaceRendering.FaceRenderer(cameraImg, self.textureImg, textureCoords, mesh)
+
+        while True:
             cameraImg = self.cap.read()[1]
-            self.textureImg = cv2.imread(self.image_name)
-            while True:
-                
-                if(self.status != 2):
-                    print("end")
-                    break
+            if(self.status != 2):
+                print("end2")
+                break
+            
+            textureCoords = utils_face_fusion.getFaceTextureCoords(self.textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
+            renderer = FaceRendering.FaceRenderer(cameraImg, self.textureImg, textureCoords, mesh)
 
-                textureCoords = utils_face_fusion.getFaceTextureCoords(self.textureImg, mean3DShape, blendshapes, idxs2D, idxs3D, detector, predictor)
-                renderer = FaceRendering.FaceRenderer(cameraImg, self.textureImg, textureCoords, mesh)
-                cameraImg = self.cap.read()[1]
+            shapes2D = utils_face_fusion.getFaceKeypoints(cameraImg, detector, predictor, maxImageSizeForDetection)
 
-                shapes2D = utils_face_fusion.getFaceKeypoints(cameraImg, detector, predictor, maxImageSizeForDetection)
-
-                if shapes2D is not None:
-                    for shape2D in shapes2D:
-                        #3D model parameter initialization
-                        modelParams = projectionModel.getInitialParameters(mean3DShape[:, idxs3D], shape2D[:, idxs2D])
-
-                        #3D model parameter optimization
-                        modelParams = NonLinearLeastSquares.GaussNewton(modelParams, projectionModel.residual, projectionModel.jacobian, ([mean3DShape[:, idxs3D], blendshapes[:, :, idxs3D]], shape2D[:, idxs2D]), verbose=0)
-
-                        #rendering the model to an image
-                        shape3D = utils_face_fusion.getShape3D(mean3DShape, blendshapes, modelParams)
-                        renderedImg = renderer.render(shape3D)
+            if shapes2D is not None:
+                for shape2D in shapes2D:
+                    #3D model parameter initialization
+                    modelParams = projectionModel.getInitialParameters(mean3DShape[:, idxs3D], shape2D[:, idxs2D])
+                    # cameraImg = self.cap.read()[1]
+                    #3D model parameter optimization
+                    modelParams = NonLinearLeastSquares.GaussNewton(modelParams, projectionModel.residual, projectionModel.jacobian, ([mean3DShape[:, idxs3D], blendshapes[:, :, idxs3D]], shape2D[:, idxs2D]), verbose=0)
+                    #rendering the model to an image
+                    shape3D = utils_face_fusion.getShape3D(mean3DShape, blendshapes, modelParams)
+                    renderedImg = renderer.render(shape3D)
 
                         #blending of the rendered face with the image
-                        mask = np.copy(renderedImg[:, :, 0])
-                        renderedImg = ImageProcessing.colorTransfer(cameraImg, renderedImg, mask)
-                        cameraImg = ImageProcessing.blendImages(renderedImg, cameraImg, mask)
+                    mask = np.copy(renderedImg[:, :, 0])
+                    renderedImg = ImageProcessing.colorTransfer(cameraImg, renderedImg, mask)
+                    cameraImg = ImageProcessing.blendImages(renderedImg, cameraImg, mask)
 
 
                         #drawing of the mesh and keypoints
-                        if drawOverlay:
-                            drawPoints(cameraImg, shape2D.T)
-                            drawProjectedShape(cameraImg, [mean3DShape, blendshapes], projectionModel, mesh, modelParams, lockedTranslation)
-                imgg=self.textureImg
-                imgg = cv2.resize(imgg,(100,100))
-                cameraImg = Add_image(cameraImg,imgg)
-            
-                if writer is not None:
-                    writer.write(cameraImg)
-            
-                self.image = cameraImg
-                show = cv2.resize(self.image,(1080,960))     #把读到的帧的大小重新设置为 640x480
-                show = cv2.cvtColor(show,cv2.COLOR_BGR2RGB) #视频色彩转换回RGB，这样才是现实的颜色
-                showImage = QtGui.QImage(show.data,show.shape[1],show.shape[0],QtGui.QImage.Format_RGB888) #把读取到的视频数据变成QImage形式
-                self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage)) 
+                    if drawOverlay:
+                        drawPoints(cameraImg, shape2D.T)
+                        drawProjectedShape(cameraImg, [mean3DShape, blendshapes], projectionModel, mesh, modelParams, lockedTranslation)
 
-            if(self.status != 2):
-                print("end")
-                return None
-##################
+            imgg = self.textureImg
+            imgg = cv2.resize(imgg,(100,100))
+            cameraImg = Add_image(cameraImg,imgg)
+            
+            if writer is not None:
+                writer.write(cameraImg)
+            
+            self.image = cameraImg
+            show = cv2.resize(self.image,(1080,960))     #把读到的帧的大小重新设置为 640x480
+            show = cv2.cvtColor(show,cv2.COLOR_BGR2RGB) #视频色彩转换回RGB，这样才是现实的颜色
+            showImage = QtGui.QImage(show.data,show.shape[1],show.shape[0],QtGui.QImage.Format_RGB888) #把读取到的视频数据变成QImage形式
+            self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage)) 
+
 
     def face_Identification(self):
         flag, bgr_image = self.cap.read()
@@ -572,9 +641,6 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 self.timer_camera1.stop()
             event.accept() 
             
-
-
-
 if __name__ == "__main__":
     App = QApplication(sys.argv)
     ex = Ui_MainWindow()
