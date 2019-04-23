@@ -22,7 +22,8 @@ def draw_bounding_box(face_coordinates, image_array, color):
 
 def draw_solid_box(face_coordinates, image_array):
     x, y, w, h = face_coordinates
-    solid_box = cv2.rectangle(image_array, (x, y-10), (x + w, y-85), (0, 0, 0), -1)
+    print(face_coordinates)
+    solid_box = cv2.rectangle(image_array, (x+w//2-100, y-10), (x+w//2+100, y-85), (0, 0, 0), -1)
     return solid_box
 
 def apply_offsets(face_coordinates, offsets):
@@ -33,7 +34,7 @@ def apply_offsets(face_coordinates, offsets):
 def draw_text(coordinates, image_array, text, color, x_offset= 40, y_offset = 3,
                                                 font_scale=2, thickness=2):
     x, y, w, h = coordinates
-    cv2.putText(image_array, text, (x + w - 40 , y - 11),
+    cv2.putText(image_array, text, (x+w//2+55 , y-15),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 font_scale, color, thickness, cv2.LINE_AA)
 

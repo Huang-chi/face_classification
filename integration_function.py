@@ -233,7 +233,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
 
         # Set image on the button  end
 
-        #Button 的顏色修改
+        # Button 的顏色修改
         button_color = [
             self.button_open_camera, self.button_face_fusion,
             self.button_AR_function
@@ -310,7 +310,8 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.news = delimiter.join(news)
         newsLength = len(self.news)  # number of letters in news = frameRange
         lps = 3  # letters per second
-        dur = newsLength * 1000 / lps  # duration until the whole string is shown in milliseconds
+        # duration until the whole string is shown in milliseconds
+        dur = newsLength * 1000 / lps
         self.timeLine.setDuration(dur)
         self.timeLine.setFrameRange(0, newsLength)
         self.timeLine.start()
@@ -506,6 +507,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage))
 
     def button_open_camera_click(self):
+        self.button_change_face.setVisible(False)
         if self.status != "0":
             print("---- button_open_camera_click ---")
             self.status_dict[self.status].stop()
@@ -580,11 +582,11 @@ class Ui_MainWindow(QtWidgets.QWidget):
 
             if shapes2D is not None:
                 for shape2D in shapes2D:
-                    #3D model parameter initialization
+                    # 3D model parameter initialization
                     modelParams = projectionModel.getInitialParameters(
                         mean3DShape[:, idxs3D], shape2D[:, idxs2D])
                     # cameraImg = self.cap.read()[1]
-                    #3D model parameter optimization
+                    # 3D model parameter optimization
                     modelParams = NonLinearLeastSquares.GaussNewton(
                         modelParams,
                         projectionModel.residual,
@@ -592,19 +594,19 @@ class Ui_MainWindow(QtWidgets.QWidget):
                         ([mean3DShape[:, idxs3D], blendshapes[:, :, idxs3D]],
                          shape2D[:, idxs2D]),
                         verbose=0)
-                    #rendering the model to an image
+                    # rendering the model to an image
                     shape3D = utils_face_fusion.getShape3D(
                         mean3DShape, blendshapes, modelParams)
                     renderedImg = renderer.render(shape3D)
 
-                    #blending of the rendered face with the image
+                    # blending of the rendered face with the image
                     mask = np.copy(renderedImg[:, :, 0])
                     renderedImg = ImageProcessing.colorTransfer(
                         cameraImg, renderedImg, mask)
                     cameraImg = ImageProcessing.blendImages(
                         renderedImg, cameraImg, mask)
 
-                    #drawing of the mesh and keypoints
+                    # drawing of the mesh and keypoints
                     if drawOverlay:
                         drawPoints(cameraImg, shape2D.T)
                         drawProjectedShape(cameraImg,
@@ -620,11 +622,12 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 writer.write(cameraImg)
 
             self.image = cameraImg
-            show = cv2.resize(self.image, (1080, 960))  #把读到的帧的大小重新设置为 640x480
-            show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)  #视频色彩转换回RGB，这样才是现实的颜色
+            show = cv2.resize(self.image, (1080, 960))  # 把读到的帧的大小重新设置为 640x480
+            # 视频色彩转换回RGB，这样才是现实的颜色
+            show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
             showImage = QtGui.QImage(
                 show.data, show.shape[1], show.shape[0],
-                QtGui.QImage.Format_RGB888)  #把读取到的视频数据变成QImage形式
+                QtGui.QImage.Format_RGB888)  # 把读取到的视频数据变成QImage形式
             self.label_show_camera.setPixmap(
                 QtGui.QPixmap.fromImage(showImage))
         if (self.status != "2"):
@@ -633,8 +636,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
             return None
 
     def face_Identification(self):
-        print("--------- face Identification ---------")
-        print(self.status)
+
         flag, bgr_image = self.cap.read()
         if (self.status != "1"):
             return None
@@ -645,7 +647,13 @@ class Ui_MainWindow(QtWidgets.QWidget):
 
             img_h, img_w, _ = np.shape(rgb_image)
 
+            a = 0
             for face_coordinates in faces:
+                
+                # Output face number
+                print("---- Print face numbers ----")
+                print(faces.size/4)
+
                 x1, x2, y1, y2 = apply_offsets(face_coordinates,
                                                gender_offsets)
                 rgb_face = rgb_image[y1:y2, x1:x2]
@@ -682,13 +690,18 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 words_img = words_dict[set_icon]
 
                 ###################
-                if (self.frq % 60 == 0):
 
+                if gender_text == gender_labels[0]:
+                    color = (255, 0, 0)
+                else:
+                    color = (0, 0, 255)
+
+                if (self.frq % 15 == 0):
                     # detect faces using dlib detector
                     detected = detector(rgb_image, 1)
 
-                    faces_age = np.empty((len(detected), img_size, img_size,
-                                          3))
+                    faces_age = np.empty(
+                        (len(detected), img_size, img_size, 3))
 
                     if len(detected) > 0:
                         for i, d in enumerate(detected):
@@ -705,8 +718,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
                                 rgb_image[yw1:yw2 + 1, xw1:xw2 + 1, :],
                                 (img_size, img_size))
                             faces_age[i, :, :, :] = cv2.resize(
-                                rgb_image[y1:y2, x1:x2, :],
-                                (img_size, img_size))
+                                rgb_image[y1:y2, x1:x2, :], (img_size, img_size))
 
                         # predict ages and genders of the detected faces
                         results = model.predict(faces_age)
@@ -717,27 +729,28 @@ class Ui_MainWindow(QtWidgets.QWidget):
                         print(predicted_ages)
                         for i, d in enumerate(detected):
                             print("-----every ages -----")
-                            print(i, d)
-                            self.age_position = str(
-                                int(predicted_ages[i] * 0.65))
-
-                if gender_text == gender_labels[0]:
-                    color = (0, 0, 255)
-                else:
-                    color = (255, 0, 0)
+                            print(str(int(predicted_ages[i])))
+                            self.age_position.append(
+                                str(int(predicted_ages[i])))
 
                 # if((face_coordinates[0] - face_coordinates[2]) > 50 and (face_coordinates[0] - face_coordinates[2]) < 180 and (face_coordinates[1]-80) > 20):
-                print("---- draw -----")
-                solid_box = draw_solid_box(face_coordinates, rgb_image)
-                draw_bounding_box(face_coordinates, rgb_image, color)
-                words_img = cv2.resize(words_img, (face_coordinates[2], 65))
-                # solid_box = Addemotion(face_coordinates,solid_box,icon_img)
-                solid_box = Addemotion_word(face_coordinates, solid_box,
-                                            words_img)
-                draw_text(face_coordinates, solid_box, self.age_position,
-                          (255, 255, 255), 0, -20, 1, 1)
+                if (face_coordinates[1] - 80) > 20:
+                    print("---- draw -----")
+                    print(a)
 
-                self.frq += 1
+                    solid_box = draw_solid_box(face_coordinates, rgb_image)
+                    draw_bounding_box(face_coordinates, rgb_image, color)
+                    words_img = cv2.resize(words_img,
+                                           (180, 65))
+                    solid_box = Addemotion_word(face_coordinates, solid_box,
+                                                words_img)
+
+                    draw_text(face_coordinates, solid_box,
+                              self.age_position[a], (255, 255, 255), 0, -20, 1,
+                              1)
+
+                    a += 1
+                    self.frq += 1
 
             bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
             show = cv2.resize(rgb_image, (1080, 960))

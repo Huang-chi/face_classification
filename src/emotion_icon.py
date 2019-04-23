@@ -50,9 +50,9 @@ def Addemotion(coordinates, image_array, emotion_icon=None):
 
 
 def Addemotion_word(coordinates, image_array, emotion_icon=None):
-    x, y, w, h = coordinates
-    x_offset = x 
-    y_offset = -90 + y
+    x, y, w= coordinates[:3]
+    x_offset = x+w//2-100
+    y_offset = -80 + y
     y1, y2 = y_offset, y_offset + emotion_icon.shape[0]
     x1, x2 = x_offset, x_offset + emotion_icon.shape[1]
 
