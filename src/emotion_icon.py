@@ -3,36 +3,24 @@ import cv2 as cv
 
 angry_man = None
 ICON_SIZE = (40, 40)
-WORDS_SIZE = (160, 90)
+WORDS_SIZE = (160, 80)
 
 ICON_IMG_PATH = "./src/img/emotion/"
-WORD_IMG_PATH = "./src/img/emotion_word/"
+WORD_IMG_PATH = "./src/img/emotion_word/emoji_picture/emoji_picture/"
 IMG_PATH = "./src/img_1/"
 
 
-EMOTION_ICON = [
-        "angry_man", "angry_woman", "disgust_man", "disgust_woman",
-        "fear_man", "fear_woman", "happy_man", "happy_woman",
-        "neutral_man", "neutral_woman", "sad_man", "sad_woman", "surprise_man",
-        "surprise_woman"]
-
 
 EMOTION_WORD = [
-        "angry_man", "angry_woman", "disgust_man", "disgust_woman",
-        "fear_man", "fear_woman", "happy_man", "happy_woman",
-        "neutral_man", "neutral_woman", "sad_man", "sad_woman", "surprise_man",
-        "surprise_woman"]
+        "m_angry", "w_angry", "m_disgust", "w_disgust",
+        "m_fear", "w_fear", "m_happy", "w_happy",
+        "m_no", "w_no", "m_sad", "w_sad", "m_suprise",
+        "w_suprise"]
 
 
 def load_emotion_icon():
 
-    icon_dict = {}
     words_dict = {}
-
-    for icon in EMOTION_ICON:
-        tmp_img = cv.imread(IMG_PATH+icon+".png", -1)
-        tmp_img = cv.resize(tmp_img, ICON_SIZE)
-        icon_dict[icon] = tmp_img
 
     for icon in EMOTION_WORD:
         tmp_img = cv.imread(WORD_IMG_PATH+icon+".png", -1)
@@ -40,7 +28,7 @@ def load_emotion_icon():
         tmp_img = cv.cvtColor(tmp_img, cv.COLOR_RGB2BGR)
         words_dict[icon] = tmp_img
 
-    return icon_dict, words_dict
+    return words_dict
 
 
 def Addemotion(coordinates, image_array, emotion_icon=None):

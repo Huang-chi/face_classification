@@ -3,7 +3,7 @@ from pygame.locals import *
 
 from OpenGL.GL import *
 from OpenGL.GLU import *
-
+import os
 import numpy as np
 
    
@@ -32,6 +32,11 @@ class FaceRenderer:
         self.w = targetImg.shape[1]
 
         pygame.init()
+
+        xPos = 1200
+        yPos = 1200
+        os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (xPos, yPos)
+
         pygame.display.set_mode((self.w, self.h), DOUBLEBUF|OPENGL)
         setOrtho(self.w, self.h)
 

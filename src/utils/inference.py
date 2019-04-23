@@ -22,7 +22,7 @@ def draw_bounding_box(face_coordinates, image_array, color):
 
 def draw_solid_box(face_coordinates, image_array):
     x, y, w, h = face_coordinates
-    solid_box = cv2.rectangle(image_array, (x, y-10), (x + w, y-80), (0, 0, 0), -1)
+    solid_box = cv2.rectangle(image_array, (x, y-10), (x + w, y-85), (0, 0, 0), -1)
     return solid_box
 
 def apply_offsets(face_coordinates, offsets):
