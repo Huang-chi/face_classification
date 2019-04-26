@@ -2,14 +2,14 @@ import dlib
 import cv2
 import numpy as np
 
-import models
+import models_face_fusion
 import NonLinearLeastSquares
 import ImageProcessing
 
 from drawing import *
 
 import FaceRendering
-import utils
+import utils_face_fusion
 
 from ImportIamage import return_image_path
 from add_image import Add_image

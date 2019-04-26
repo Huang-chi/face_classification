@@ -87,6 +87,7 @@ if not weight_file:
     weight_file = get_file("weights.28-3.73.hdf5", pretrained_model, cache_subdir="pretrained_models",
             file_hash=modhash, cache_dir=str(Path(__file__).resolve().parent))
 
+print(str(Path(__file__).resolve().parent))
 # for face detection
 detector = dlib.get_frontal_face_detector()
 
@@ -198,6 +199,7 @@ for img in image_generator:
             draw_text(face_coordinates, solid_box, age_position,
                 (255,255,255), 0, -20, 1, 1)
             print("-*---------")
+        
         frq += 1
 
 
