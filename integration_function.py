@@ -96,6 +96,14 @@ font = cv2.FONT_HERSHEY_SIMPLEX
 pretrained_model = "https://github.com/yu4u/age-gender-estimation/releases/download/v0.5/weights.28-3.73.hdf5"
 modhash = 'fbe63257a054c1c5466cfd7bf14646d6'
 
+# face fusion module
+# detector = dlib.get_frontal_face_detector()
+# mean3DShape, blendshapes, mesh, idxs3D, idxs2D = utils_face_fusion.load3DFaceModel(
+#         "./fw/candide.npz")
+
+# projectionModel = models_face_fusion.OrthographicProjectionBlendshapes(
+#     blendshapes.shape[0])
+
 # hyper-parameters for bounding boxes shape
 frame_window = 10
 gender_offsets = (30, 60)
@@ -152,12 +160,11 @@ class Ui_MainWindow(QtWidgets.QWidget):
         super(Ui_MainWindow, self).__init__(parent)
         # self.face_recong = face.Recognition()
         self.timer_camera = QtCore.QTimer()
-        self.timer_camera1 = QtCore.QTimer()
         self.timer_camera2 = QtCore.QTimer()
         self.timer_camera0 = QtCore.QTimer()
+
         self.status_dict = {
             "1": self.timer_camera,
-            "2": self.timer_camera1,
             "3": self.timer_camera2
         }
         # self.button_status_dict = {} 160,160,160 -> 95,97,03
@@ -191,11 +198,13 @@ class Ui_MainWindow(QtWidgets.QWidget):
 
     def set_ui(self):
         self.label = QtWidgets.QLabel('')  # label showing the news
+        self.just_label = QtWidgets.QLabel('')
         self.label.setAlignment(
             QtCore.Qt.AlignRight)  # text starts on the right
 
         self.label.setFixedWidth(1150)
         self.label.setFixedHeight(100)
+
 
         self.__layout_main = QtWidgets.QVBoxLayout()  # 垂直排版
         self.__layout_fun_button = QtWidgets.QHBoxLayout()  # 水平排版
@@ -213,6 +222,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
             QtGui.QIcon('./fw/data/Tai-Tzu-ying.jpg'))
         self.button_change_face.setIconSize(
             QtCore.QSize(ICON_HEIGHT, ICON_WIDTH))
+
 
         self.button_AR_function = QtWidgets.QPushButton(u'')  # button
         self.button_AR_function.setIcon(QtGui.QIcon('./src/img/AR.png'))
@@ -232,6 +242,14 @@ class Ui_MainWindow(QtWidgets.QWidget):
             QtCore.QSize(ICON_HEIGHT, ICON_WIDTH))
 
         # Set image on the button  end
+
+
+
+        self.setStyleSheet("QPushButton{border:2px}"
+                "QPushButton{border-style:so lid}"
+                "QPushButton{border-radius:40px}"
+                "QPushButton{margin:30px}"
+                "QPushButton{padding:30px}")
 
         # Button 的顏色修改
         button_color = [
@@ -260,6 +278,9 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.button_change_face.setMaximumHeight(BUTTON_HEIGHT)
         self.button_change_face.setMaximumWidth(BUTTON_HEIGHT)
 
+        self.just_label.setFixedWidth(BUTTON_HEIGHT)
+        self.just_label.setFixedHeight(BUTTON_HEIGHT)
+
         self.setGeometry(100, 100, 1217, 684)
 
         pix2 = QPixmap('')
@@ -282,6 +303,8 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.__layout_main.addLayout(self.__layout_fun_button)
 
         self.__layout_data_show.addWidget(self.button_change_face)
+        self.__layout_data_show.addWidget(self.just_label)
+        self.button_change_face.setVisible(False)
 
         # layer button
         self.__layout_fun_button.addWidget(self.button_open_camera)
@@ -335,16 +358,14 @@ class Ui_MainWindow(QtWidgets.QWidget):
 
         # Timer connect
         self.timer_camera.timeout.connect(self.face_Identification)
-        self.timer_camera1.timeout.connect(self.face_Fusion)
         self.timer_camera2.timeout.connect(self.AR_function)
-        self.timer_camera0.timeout.connect(self.show_camera)
 
         # Change image_name button
         self.button_change_face.clicked.connect(
             self.change_button_icon_and_face_fusion_image)
 
     def button_open_AR(self):
-        if self.status != "0":
+        if self.status != "0" and self.status != "2":
             print("---- button_open_AR ---")
             self.status_dict[self.status].stop()
             self.cap.release()
@@ -365,7 +386,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
             else:
                 print("timer_camera2")
                 # self.timer_camera.stop()
-                self.status = "2"
+                self.status = "3"
 
                 self.timer_camera2.start(30)
         else:
@@ -375,6 +396,12 @@ class Ui_MainWindow(QtWidgets.QWidget):
             self.label_show_camera.clear()
 
     def AR_function(self):
+        self.button_change_face.setVisible(False)
+        self.just_label.setVisible(True)
+        if self.status != "3":
+            self.label_show_camera.clear()
+            return None
+
         # import AR accessories
         face_patterns = cv2.CascadeClassifier(
             'haarcascade_frontalface_default.xml')
@@ -382,26 +409,28 @@ class Ui_MainWindow(QtWidgets.QWidget):
         hats = []
         eyes = []
         for i in range(2):
-            hats.append(cv2.imread('./AR_img/hat%d.png' % i, -1))
-            eyes.append(cv2.imread('./AR_img/glass%d.png' % i, -1))
-
+            hats.append(cv2.imread('./AR_img/hat%d.png' %i, -1 ))
+            eyes.append(cv2.imread('./AR_img/glass%d.png' %i, -1))
+            
         print("------- AR function is running --------")
-        ret, sample_image = self.cap.read()
-        print(sample_image)
-        centers = []
-        while True:
-            img_gray = cv2.cvtColor(sample_image, cv2.COLOR_BGR2GRAY, 1)
-            faces = face_patterns.detectMultiScale(
-                img_gray, scaleFactor=1.1, minNeighbors=5, minSize=(10, 10))
-            for face in faces:
-                print(face)
-                x, y, w, h = face
+        sample_image = self.cap.read()[1]
+        sample_image = cv2.cvtColor(sample_image, cv2.COLOR_BGR2RGB)
+
+        sample_image = self.cap.read()[1]
+
+        img_gray = cv2.cvtColor(sample_image, cv2.COLOR_BGR2GRAY, -1)
+        faces = face_patterns.detectMultiScale(
+            img_gray, scaleFactor=1.1, minNeighbors=5, minSize=(10, 10))
+        for face in faces:
+            print(face)
+            x, y, w, h = face
+                
             # 取帽子
             hat = random.choice(hats)
             # 取眼鏡
             eye = random.choice(eyes)
             # 调整帽子尺寸
-            scale = h / hat.shape[0] * 1.0
+            scale = h / hat.shape[0] * 1.0  #
             hat = cv2.resize(hat, (0, 0), fx=scale, fy=scale)
             scale = h / eye.shape[0] * 0.4
             eye = cv2.resize(eye, (0, 0), fx=scale, fy=scale)
@@ -435,10 +464,18 @@ class Ui_MainWindow(QtWidgets.QWidget):
             eye_y2 = eye_y1 + y22 - y11
 
             # 透明部分的處理 eye
+            # width = eye.shape[0]
+            # height = eye.shape[1]
+            # alpha_value = np.ones((width, height, 1))*255
+            # eye1 = np.c_[eye, alpha_value]
             alpha_h_eye = eye[eye_y1:eye_y2, eye_x1:eye_x2, 3] / 255
             alpha_eye = 1 - alpha_h_eye
 
             # 透明部分的處理
+            # width_hat = hat.shape[0]
+            # height_hat = hat.shape[1]
+            # alpha_value_hat = np.ones((width_hat, height_hat, 1))*255
+            # hat1 = np.c_[hat, alpha_value_hat]
             alpha_h = hat[hat_y1:hat_y2, hat_x1:hat_x2, 3] / 255
             alpha = 1 - alpha_h
 
@@ -450,13 +487,16 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 sample_image[y11:y22, x11:x22, c] = (
                     alpha_h_eye * eye[eye_y1:eye_y2, eye_x1:eye_x2, c] +
                     alpha_eye * sample_image[y11:y22, x11:x22, c])
-
-            sample_image = cv2.cvtColor(sample_image, cv2.COLOR_GRAY2BGR)
-            show = cv2.resize(sample_image, (1080, 960))
-            showImage = QtGui.QImage(show, show.shape[1], show.shape[0],
-                                     QtGui.QImage.Format_RGB888)
-            self.label_show_camera.setPixmap(
-                QtGui.QPixmap.fromImage(showImage))
+            
+        image = sample_image
+        show = cv2.resize(image, (1080, 960))  # 把读到的帧的大小重新设置为 640x480
+        # 视频色彩转换回RGB，这样才是现实的颜色
+        show = cv2.cvtColor(show, cv2.COLOR_RGB2BGR)
+        showImage = QtGui.QImage(
+            show.data, show.shape[1], show.shape[0],
+            QtGui.QImage.Format_RGB888)  # 把读取到的视频数据变成QImage形式
+        self.label_show_camera.setPixmap(
+            QtGui.QPixmap.fromImage(showImage))
 
     def change_button_icon_and_face_fusion_image(self):
         print("---- Change face -----")
@@ -466,6 +506,8 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.textureImg = cv2.imread(self.image_name)
 
     def face_fusion_click(self, flag):
+        self.button_change_face.setVisible(True)
+        self.just_label.setVisible(False)
         if self.status != "0":
             print("---- button_open_camera_click ---")
             self.status_dict[self.status].stop()
@@ -474,10 +516,8 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.image_name = return_image_path()
         self.button_change_face.setIcon(QtGui.QIcon(self.image_name))
         print("--- Timer camera1 status ----")
-        print(self.timer_camera1.isActive())
 
-        if self.timer_camera1.isActive() == False:
-
+        if (self.status != "2"):
             flag = self.cap.open(self.CAM_NUM)
             if flag == False:
                 msg = QtWidgets.QMessageBox.warning(
@@ -489,12 +529,10 @@ class Ui_MainWindow(QtWidgets.QWidget):
             else:
                 print("timer_camera1")
                 self.status = "2"
-                self.timer_camera1.start(30)
+                self.face_Fusion()
         else:
-            self.status_dict[self.status].stop()
             self.cap.release()
             self.status = "0"
-
             self.label_show_camera.clear()
 
     def show_camera(self):
@@ -508,7 +546,8 @@ class Ui_MainWindow(QtWidgets.QWidget):
 
     def button_open_camera_click(self):
         self.button_change_face.setVisible(False)
-        if self.status != "0":
+        self.just_label.setVisible(True)
+        if self.status != "0" and self.status != "2":
             print("---- button_open_camera_click ---")
             self.status_dict[self.status].stop()
             self.cap.release()
@@ -527,7 +566,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 self.status = "1"
                 self.timer_camera.start(30)
         else:
-            self.status_dict[self.status].stop()
+            self.timer_camera.stop()
             self.cap.release()
             self.status = "0"
             # self.timer_camera.stop()
@@ -630,6 +669,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 QtGui.QImage.Format_RGB888)  # 把读取到的视频数据变成QImage形式
             self.label_show_camera.setPixmap(
                 QtGui.QPixmap.fromImage(showImage))
+                
         if (self.status != "2"):
             self.label_show_camera.clear()
             print("end1")
@@ -724,19 +764,27 @@ class Ui_MainWindow(QtWidgets.QWidget):
                         results = model.predict(faces_age)
                         ages = np.arange(0, 101).reshape(101, 1)
                         predicted_ages = results[1].dot(ages).flatten()
-                        self.age_position = []
+                        self.age_position = ["30","28","25","20","35","19","30","21","23","26"]
                         print("----- age -----")
                         print(predicted_ages)
                         for i, d in enumerate(detected):
-                            print("-----every ages -----")
+                            print("-----every ages "+str(i)+"-----")
                             print(str(int(predicted_ages[i])))
-                            self.age_position.append(
-                                str(int(predicted_ages[i])))
+                            
+                            if(int(predicted_ages[i] >= 25)):
+                                self.age_position[i] = str(25 + int((predicted_ages[i]-25) * 0.65))
+                            
+                            else:
+                                self.age_position[i] = str(25 - int((25 - predicted_ages[i]) * 0.65))
+
+                            # self.age_position[i] = (
+                            #     str(int(predicted_ages[i] * 0.65)))
 
                 # if((face_coordinates[0] - face_coordinates[2]) > 50 and (face_coordinates[0] - face_coordinates[2]) < 180 and (face_coordinates[1]-80) > 20):
                 if (face_coordinates[1] - 80) > 20:
                     print("---- draw -----")
-                    print(a)
+                    print(a,self.age_position[a])
+                    print("---- draw -----")
 
                     solid_box = draw_solid_box(face_coordinates, rgb_image)
                     draw_bounding_box(face_coordinates, rgb_image, color)
@@ -778,8 +826,6 @@ class Ui_MainWindow(QtWidgets.QWidget):
                 self.cap.release()
             if self.timer_camera.isActive():
                 self.timer_camera.stop()
-            if self.timer_camera1.isActive():
-                self.timer_camera1.stop()
             event.accept()
 
 
