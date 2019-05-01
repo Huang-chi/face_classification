@@ -1,7 +1,7 @@
 # reference
 * https://github.com/oarriaga/face_classification
 * https://github.com/MarekKowalski/FaceSwap
-*  https://github.com/BoyuanJiang/Age-Gender-Estimate-TF
+* https://github.com/yu4u/age-gender-estimation
 
 # Face classification and detection.
 Real-time face detection and emotion/gender classification using fer2013/IMDB datasets with a keras CNN model and openCV.
