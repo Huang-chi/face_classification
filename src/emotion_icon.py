@@ -58,12 +58,10 @@ def Addemotion_word(coordinates, image_array, emotion_icon=None):
     x1, x2 = x_offset, x_offset + emotion_icon.shape[1]
     print("----- emotion_icon")
     
-    #emotion_icon1 = np.array(emotion_icon,dtype = np.int)
     width = emotion_icon.shape[0]
     height = emotion_icon.shape[1]
     alpha_value = np.ones((width, height, 1))*255
     emotion_icon1 = np.c_[emotion_icon, alpha_value]
-  #  print(emotion_icon1.shape)
     
     alpha_s = emotion_icon1[:, :, 3] / 255.0 #一個白一個黑
     alpha_l = 1.0 - alpha_s
@@ -71,7 +69,6 @@ def Addemotion_word(coordinates, image_array, emotion_icon=None):
     for c in range(0, 3):
         image_array[y1:y2, x1:x2, c] = (alpha_s * emotion_icon1[:, :, c] + 
                                        alpha_l * image_array[y1:y2, x1:x2, c])
-    print(image_array)
     return image_array
 
 

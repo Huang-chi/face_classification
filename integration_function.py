@@ -323,10 +323,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
 
     def feed(self):
         self.nl = int(self.label.width() / 70)
-        news = [
-            '嘉義市政府為全力配合108年全國大專院校運動會，嘉義市拚運動及觀光經濟，配合',
-            '中正大學主辦今年全國大專校院運動會，全力支援賽事場地及交通接駁等周邊服務，市長黃敏惠與全大運吉祥物「阿里」、「阿桃」，到史蹟資料館前拍攝宣傳影片，歡迎各地選手及民眾來嘉義市小旅行。'
-        ]
+        news = ['國立中正大學歡迎您']
         appendix = '　' * self.nl
         news.append(appendix)
         delimiter = ''  # shown between the messages
@@ -770,12 +767,12 @@ class Ui_MainWindow(QtWidgets.QWidget):
                         for i, d in enumerate(detected):
                             print("-----every ages "+str(i)+"-----")
                             print(str(int(predicted_ages[i])))
+                            self.age_position[i] = str(int((predicted_ages[i]) * 0.7))
+                            #if(int(predicted_ages[i] >= 25)):
+                            #    self.age_position[i] = str(25 + int((predicted_ages[i]-25) * 0.6))
                             
-                            if(int(predicted_ages[i] >= 25)):
-                                self.age_position[i] = str(25 + int((predicted_ages[i]-25) * 0.65))
-                            
-                            else:
-                                self.age_position[i] = str(25 - int((25 - predicted_ages[i]) * 0.65))
+                            #else:
+                            #    self.age_position[i] = str(25 - int((25 - predicted_ages[i]) * 0.6))
 
                             # self.age_position[i] = (
                             #     str(int(predicted_ages[i] * 0.65)))
